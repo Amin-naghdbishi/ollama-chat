@@ -34,6 +34,8 @@ interface ChatComposerProps {
   draft?: string;
   onDraftChange?: (draft: string) => void;
   onOpenContextTool?: (tool: "search_memories" | "search_conversations" | "search_context") => void;
+  placeholder?: string;
+  className?: string;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -49,6 +51,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   draft = "",
   onDraftChange,
   onOpenContextTool,
+  placeholder,
+  className,
 }) => {
   const [input, setInput] = useState(draft);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
@@ -430,7 +434,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   );
 
   return (
-    <div className="w-full max-w-3xl xl:max-w-4xl mx-auto px-3 sm:px-6 pb-2">
+    <div className={className || "w-full max-w-3xl xl:max-w-4xl mx-auto px-3 sm:px-6 pb-2"}>
       {/* Hidden file input */}
       <input
         type="file"
@@ -522,7 +526,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onKeyDown={handleKeyDown}
             dir={inputIsRtl ? "rtl" : "ltr"}
             placeholder={
-              isDirectImageMode
+              placeholder !== undefined
+                ? placeholder
+                : isDirectImageMode
                 ? t("directImagePlaceholder")
                 : t("sendMessagePlaceholder")
             }

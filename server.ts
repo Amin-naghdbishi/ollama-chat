@@ -8,11 +8,17 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Ensure generated images storage directory exists
+  // Ensure media storage and generated images directories exist
   const IMAGES_DIR = path.join(process.cwd(), "data", "generated_images");
   if (!fs.existsSync(IMAGES_DIR)) {
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
   }
+
+  const MEDIA_DIR = path.join(process.cwd(), "data", "media");
+  if (!fs.existsSync(MEDIA_DIR)) {
+    fs.mkdirSync(MEDIA_DIR, { recursive: true });
+  }
+  const METADATA_FILE = path.join(MEDIA_DIR, "metadata.json");
 
   // JSON middleware
   app.use(express.json({ limit: "50mb" }));
@@ -308,7 +314,90 @@ async function startServer() {
     res.json(result);
   });
 
-  // Persistent Generated Image Storage Endpoints
+  // Persistent Media & Image Storage Endpoints (Dedicated 'data/media' directory)
+  app.post("/api/media", async (req, res) => {
+    try {
+      const { dataUrl, filename, metadata } = req.body;
+      if (!dataUrl || typeof dataUrl !== "string") {
+        res.status(400).json({ error: "Missing or invalid dataUrl" });
+        return;
+      }
+
+      const match = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!match) {
+        res.status(400).json({ error: "Invalid base64 data format" });
+        return;
+      }
+
+      const ext = match[1].includes("jpeg") || match[1].includes("jpg") ? "jpg" : "png";
+      const mediaId = `media-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const filePath = path.join(MEDIA_DIR, mediaId);
+      const buffer = Buffer.from(match[2], "base64");
+
+      fs.writeFileSync(filePath, buffer);
+
+      // Persist metadata if supplied
+      if (metadata && typeof metadata === "object") {
+        let metaStore: Record<string, any> = {};
+        try {
+          if (fs.existsSync(METADATA_FILE)) {
+            metaStore = JSON.parse(fs.readFileSync(METADATA_FILE, "utf-8"));
+          }
+        } catch {}
+        metaStore[mediaId] = {
+          ...metadata,
+          id: mediaId,
+          filename: filename || mediaId,
+          createdAt: Date.now(),
+        };
+        fs.writeFileSync(METADATA_FILE, JSON.stringify(metaStore, null, 2), "utf-8");
+      }
+
+      res.json({
+        id: mediaId,
+        url: `/api/media/${mediaId}`,
+        filename: filename || mediaId,
+        metadata: metadata || null,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: `Failed to save media: ${err.message}` });
+    }
+  });
+
+  app.get("/api/media/:id", (req, res) => {
+    const safeFilename = path.basename(req.params.id);
+    let filePath = path.join(MEDIA_DIR, safeFilename);
+
+    if (!fs.existsSync(filePath)) {
+      // Fallback check in IMAGES_DIR
+      filePath = path.join(IMAGES_DIR, safeFilename);
+    }
+
+    if (fs.existsSync(filePath)) {
+      const ext = path.extname(filePath).toLowerCase();
+      const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".webp" ? "image/webp" : "image/png";
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      fs.createReadStream(filePath).pipe(res);
+    } else {
+      res.status(404).json({ error: "Media not found" });
+    }
+  });
+
+  app.get("/api/media-metadata", (_req, res) => {
+    try {
+      if (fs.existsSync(METADATA_FILE)) {
+        const metaStore = JSON.parse(fs.readFileSync(METADATA_FILE, "utf-8"));
+        res.json(metaStore);
+      } else {
+        res.json({});
+      }
+    } catch {
+      res.json({});
+    }
+  });
+
+  // Persistent Generated Image Storage Endpoints (Backward Compatibility)
   app.post("/api/generated-images", async (req, res) => {
     try {
       const { dataUrl, filename } = req.body;
@@ -341,7 +430,11 @@ async function startServer() {
 
   app.get("/api/generated-images/:id", (req, res) => {
     const safeFilename = path.basename(req.params.id);
-    const filePath = path.join(IMAGES_DIR, safeFilename);
+    let filePath = path.join(IMAGES_DIR, safeFilename);
+
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(MEDIA_DIR, safeFilename);
+    }
 
     if (fs.existsSync(filePath)) {
       const ext = path.extname(filePath).toLowerCase();

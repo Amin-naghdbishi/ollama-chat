@@ -1,6 +1,7 @@
 import { ChatMessage, AppSettings } from "../types";
 import { ProviderService } from "./providerService";
 import { DEFAULT_IMAGE_PROMPT_INSTRUCTIONS } from "../lib/storage";
+import { isRtlText } from "../lib/i18n";
 import {
   extractImageParametersFromPrompt,
   resolveImageParameters,
@@ -197,4 +198,56 @@ Produce a single, comprehensive text-to-image prompt based on the instructions a
   }
 
   return `${fallbackPrompt}, highly detailed, intricate, high quality, masterpiece, sharp focus, 8k resolution`;
+}
+
+/**
+ * Synthesizes or faithfully translates natural-language image edit instructions (EN or FA)
+ * without hallucinating unrelated visual details or altering the user's intent.
+ */
+export async function synthesizeImageEditPrompt(params: {
+  editInstruction: string;
+  chatModel: string;
+  settings: AppSettings;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const { editInstruction, chatModel, settings, signal } = params;
+
+  // If already pure English, preserve exact instruction directly
+  if (!isRtlText(editInstruction) && /^[\x00-\x7F]*$/.test(editInstruction)) {
+    return editInstruction.trim();
+  }
+
+  const promptTranslateInstruction = `Translate the following image edit instruction faithfully from Persian to English for an image-to-image AI workflow.
+Preserve the exact meaning, targeted regions, and requested modifications without inventing extra details, objects, or styles. Output ONLY the English edit prompt without conversational commentary.
+
+User Edit Instruction:
+"${editInstruction}"`;
+
+  try {
+    let resultText = "";
+    await ProviderService.sendChatStream({
+      settings,
+      modelId: chatModel,
+      messages: [{ id: "edit-synth", role: "user", content: promptTranslateInstruction, timestamp: Date.now() }],
+      systemPrompt: "You are a precise technical translator for AI image editing. Output ONLY the English edit prompt without commentary.",
+      signal,
+      onChunk: (chunk) => {
+        if (chunk) resultText += chunk;
+      },
+    });
+
+    const cleaned = resultText
+      .replace(/^["'`]+|["'`]+$/g, "")
+      .replace(/^(here is (the|your) (translation|edit prompt):?)/i, "")
+      .replace(/^edit prompt:\s*/i, "")
+      .trim();
+
+    if (cleaned.length > 2) {
+      return cleaned;
+    }
+  } catch (err) {
+    console.warn("Edit prompt translation fallback:", err);
+  }
+
+  return editInstruction.trim();
 }

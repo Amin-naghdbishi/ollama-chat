@@ -287,6 +287,235 @@ class ComfyApiService {
   }
 
   /**
+   * Upload an image to ComfyUI input directory
+   */
+  async uploadImage(params: {
+    imageDataUrl: string;
+    endpoint?: string;
+    subfolder?: string;
+  }): Promise<{ name: string; subfolder?: string }> {
+    const { imageDataUrl, endpoint, subfolder = "" } = params;
+    const { url, headers } = this.resolveUrl("upload/image", endpoint);
+
+    let blob: Blob;
+    const match = imageDataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (match) {
+      const mime = match[1];
+      const binary = atob(match[2]);
+      const array = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        array[i] = binary.charCodeAt(i);
+      }
+      blob = new Blob([array], { type: mime });
+    } else {
+      const fetchRes = await fetch(imageDataUrl);
+      blob = await fetchRes.blob();
+    }
+
+    const formData = new FormData();
+    const filename = `input_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.png`;
+    formData.append("image", blob, filename);
+    formData.append("overwrite", "true");
+    if (subfolder) formData.append("subfolder", subfolder);
+
+    const uploadHeaders: Record<string, string> = {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (k.toLowerCase() !== "content-type") {
+        uploadHeaders[k] = v;
+      }
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: uploadHeaders,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Failed to upload image to ComfyUI: ${res.status} - ${err}`);
+    }
+
+    return await res.json();
+  }
+
+  /**
+   * Queue image-to-image or inpainting prompt with ComfyUI
+   */
+  async queueImg2ImgPrompt(params: {
+    checkpoint: string;
+    prompt: string;
+    negativePrompt?: string;
+    sourceImageFilename: string;
+    maskImageFilename?: string;
+    denoise?: number;
+    steps?: number;
+    cfg?: number;
+    seed?: number;
+    endpoint?: string;
+    clientId?: string;
+  }): Promise<ComfyPromptResponse> {
+    if (this.isGenerating) {
+      throw new Error("Another image generation job is currently in progress. Please wait for it to complete.");
+    }
+
+    const {
+      checkpoint,
+      prompt,
+      negativePrompt = "text, watermark, blurry, low quality, distortion, deformed, ugly, bad anatomy, bad hands, missing fingers",
+      sourceImageFilename,
+      maskImageFilename,
+      denoise = maskImageFilename ? 0.85 : 0.70,
+      steps = 25,
+      cfg = 7,
+      seed = Math.floor(Math.random() * 1000000000),
+      endpoint,
+      clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    } = params;
+
+    let workflow: Record<string, any>;
+
+    if (maskImageFilename) {
+      // Inpainting workflow graph
+      workflow = {
+        "4": {
+          class_type: "CheckpointLoaderSimple",
+          inputs: { ckpt_name: checkpoint },
+        },
+        "6": {
+          class_type: "CLIPTextEncode",
+          inputs: { clip: ["4", 1], text: prompt },
+        },
+        "7": {
+          class_type: "CLIPTextEncode",
+          inputs: { clip: ["4", 1], text: negativePrompt },
+        },
+        "10": {
+          class_type: "LoadImage",
+          inputs: { image: sourceImageFilename },
+        },
+        "10_mask": {
+          class_type: "LoadImage",
+          inputs: { image: maskImageFilename },
+        },
+        "11": {
+          class_type: "VAEEncodeForInpaint",
+          inputs: {
+            pixels: ["10", 0],
+            vae: ["4", 2],
+            mask: ["10_mask", 1],
+            grow_mask_by: 6,
+          },
+        },
+        "3": {
+          class_type: "KSampler",
+          inputs: {
+            cfg,
+            denoise,
+            latent_image: ["11", 0],
+            model: ["4", 0],
+            negative: ["7", 0],
+            positive: ["6", 0],
+            sampler_name: "euler",
+            scheduler: "normal",
+            seed,
+            steps,
+          },
+        },
+        "8": {
+          class_type: "VAEDecode",
+          inputs: { samples: ["3", 0], vae: ["4", 2] },
+        },
+        "9": {
+          class_type: "SaveImage",
+          inputs: { filename_prefix: "OllamaChat_Inpaint", images: ["8", 0] },
+        },
+      };
+    } else {
+      // Standard image-to-image workflow graph
+      workflow = {
+        "4": {
+          class_type: "CheckpointLoaderSimple",
+          inputs: { ckpt_name: checkpoint },
+        },
+        "6": {
+          class_type: "CLIPTextEncode",
+          inputs: { clip: ["4", 1], text: prompt },
+        },
+        "7": {
+          class_type: "CLIPTextEncode",
+          inputs: { clip: ["4", 1], text: negativePrompt },
+        },
+        "10": {
+          class_type: "LoadImage",
+          inputs: { image: sourceImageFilename },
+        },
+        "11": {
+          class_type: "VAEEncode",
+          inputs: { pixels: ["10", 0], vae: ["4", 2] },
+        },
+        "3": {
+          class_type: "KSampler",
+          inputs: {
+            cfg,
+            denoise,
+            latent_image: ["11", 0],
+            model: ["4", 0],
+            negative: ["7", 0],
+            positive: ["6", 0],
+            sampler_name: "euler",
+            scheduler: "normal",
+            seed,
+            steps,
+          },
+        },
+        "8": {
+          class_type: "VAEDecode",
+          inputs: { samples: ["3", 0], vae: ["4", 2] },
+        },
+        "9": {
+          class_type: "SaveImage",
+          inputs: { filename_prefix: "OllamaChat_Img2Img", images: ["8", 0] },
+        },
+      };
+    }
+
+    this.isGenerating = true;
+
+    try {
+      const { url: promptUrl, headers: promptHeaders } = this.resolveUrl("prompt", endpoint);
+      const res = await fetch(promptUrl, {
+        method: "POST",
+        headers: {
+          ...promptHeaders,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: workflow,
+          client_id: clientId,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        this.isGenerating = false;
+        throw new Error(`ComfyUI prompt error: ${res.status} - ${errorText}`);
+      }
+
+      const data: ComfyPromptResponse = await res.json();
+      if (data.node_errors && Object.keys(data.node_errors).length > 0) {
+        this.isGenerating = false;
+        throw new Error(`ComfyUI workflow error: ${JSON.stringify(data.node_errors)}`);
+      }
+
+      return data;
+    } catch (err) {
+      this.isGenerating = false;
+      throw err;
+    }
+  }
+
+  /**
    * Track prompt progress until image is saved and persist it
    */
   async trackPrompt(params: {

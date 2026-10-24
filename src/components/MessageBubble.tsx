@@ -24,7 +24,9 @@ import {
 import { ChatMessage, AIActivityState } from "../types";
 import { CodeBlock } from "./CodeBlock";
 import { AIStatusIndicator } from "./AIStatusIndicator";
+import { ImageViewerModal } from "./ImageViewerModal";
 import { Language, getTranslation, isRtlText } from "../lib/i18n";
+import { FileAttachment } from "../types";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -39,156 +41,16 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   activeActivityState?: AIActivityState;
   language?: Language;
+  selectedModel?: string | null;
+  onApplyImageEdit?: (params: {
+    messageId: string;
+    sourceImageUrl: string;
+    editInstruction: string;
+    maskDataUrl?: string;
+    referenceImages?: FileAttachment[];
+    toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt";
+  }) => Promise<string | null>;
 }
-
-/**
- * Dedicated Fullscreen / Large Image Viewer with Substantial Zoom & Smooth Pan
- */
-const ImageViewerModal: React.FC<{
-  imageUrl: string;
-  onClose: () => void;
-  onDownload: () => void;
-  title?: string;
-}> = ({ imageUrl, onClose, onDownload, title }) => {
-  const [zoom, setZoom] = useState<number>(1);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const dragStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  // Escape key closes modal
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  const handleZoomIn = () => setZoom((prev) => Math.min(5, +(prev * 1.25).toFixed(2)));
-  const handleZoomOut = () => setZoom((prev) => Math.max(0.25, +(prev / 1.25).toFixed(2)));
-  const handleReset = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      handleZoomIn();
-    } else {
-      handleZoomOut();
-    }
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    dragStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.current.x,
-      y: e.clientY - dragStart.current.y,
-    });
-  };
-
-  const handleMouseUp = () => setIsDragging(false);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex flex-col items-center justify-between select-none animate-fadeIn"
-      onClick={onClose}
-    >
-      {/* Top Floating Control Bar */}
-      <div
-        className="w-full px-4 py-3 flex items-center justify-between bg-black/60 backdrop-blur-md border-b border-white/10 z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 text-xs font-mono text-neutral-300 truncate max-w-sm">
-          <span>{title || "ComfyUI Generated Image"}</span>
-        </div>
-
-        {/* Zoom & View Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-neutral-900/90 border border-neutral-700/60 rounded-xl p-1 shadow-lg">
-          <button
-            onClick={handleZoomOut}
-            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-            title="Zoom Out (-)"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <span className="font-mono text-xs px-2 text-neutral-200 min-w-[50px] text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            onClick={handleZoomIn}
-            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-            title="Zoom In (+)"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <div className="h-4 w-px bg-neutral-700/60" />
-          <button
-            onClick={handleReset}
-            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-            title="Fit / Reset (100%)"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onDownload}
-            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
-            title="Download Image"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="p-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700/60 transition-colors cursor-pointer"
-          title="Close (Esc)"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Main Pan/Zoom Stage */}
-      <div
-        className="flex-1 w-full flex items-center justify-center overflow-hidden relative"
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        style={{ cursor: isDragging ? "grabbing" : "grab" }}
-      >
-        <div
-          className="transition-transform duration-75 ease-out select-none"
-          style={{
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <img
-            src={imageUrl}
-            alt="Full size preview"
-            draggable={false}
-            className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none"
-          />
-        </div>
-      </div>
-
-      {/* Footer Hint */}
-      <div className="py-2 text-[11px] text-neutral-400 font-mono tracking-wider pointer-events-none">
-        Scroll to zoom • Drag to pan • Esc to close
-      </div>
-    </div>
-  );
-};
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -200,6 +62,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   isLastAssistantMessage,
   isStreaming,
   language = "en",
+  selectedModel,
+  onApplyImageEdit,
 }) => {
   const [copiedText, setCopiedText] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -687,15 +551,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
       </div>
 
-      {/* Dedicated Larger Image Viewer Modal */}
+      {/* Dedicated Full-featured Image Viewer and Editor Modal */}
       {viewerImageUrl && (
         <ImageViewerModal
           imageUrl={viewerImageUrl}
-          title={message.imageGeneration?.modelUsed || "Generated Visual Output"}
+          rootImageId={message.id}
+          title={message.imageGeneration?.modelUsed || message.attachments?.[0]?.name || "Image Workspace"}
           onClose={() => setViewerImageUrl(null)}
           onDownload={() =>
             handleDownloadImage(viewerImageUrl, `image-${Date.now()}.png`)
           }
+          onApplyEdit={
+            onApplyImageEdit
+              ? (params) =>
+                  onApplyImageEdit({
+                    messageId: message.id,
+                    sourceImageUrl: params.sourceImageUrl,
+                    editInstruction: params.editInstruction,
+                    maskDataUrl: params.maskDataUrl,
+                    referenceImages: params.referenceImages,
+                    toolUsed: params.toolUsed,
+                  })
+              : undefined
+          }
+          selectedModel={message.imageGeneration?.modelUsed || selectedModel}
+          language={language}
         />
       )}
     </div>

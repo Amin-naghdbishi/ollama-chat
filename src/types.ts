@@ -122,6 +122,30 @@ export interface ImageModelProfile {
   negativePrompt?: string;
 }
 
+export interface ImageVersion {
+  id: string;
+  versionNumber: number;
+  imageUrl: string;
+  thumbnailUrl?: string;
+  sourceImageId?: string;
+  parentVersionId?: string;
+  editInstruction?: string;
+  toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt" | "initial";
+  timestamp: number;
+  width?: number;
+  height?: number;
+  hasMask?: boolean;
+}
+
+export interface ImageVersionHistory {
+  rootImageId: string;
+  originalUrl: string;
+  currentVersionId: string;
+  versions: ImageVersion[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ImageGenerationData {
   promptId?: string;
   status: "prompting" | "queued" | "processing" | "completed" | "failed" | "interrupted";
@@ -140,6 +164,8 @@ export interface ImageGenerationData {
   seed?: number;
   error?: string;
   warning?: string;
+  versionHistory?: ImageVersionHistory;
+  activeVersionId?: string;
   createdAt: number;
   completedAt?: number;
 }

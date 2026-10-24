@@ -18,7 +18,9 @@ import { Storage, DEFAULT_SETTINGS } from "./lib/storage";
 import { OllamaApi, detectModelCapabilities } from "./services/ollamaApi";
 import { ProviderService } from "./services/providerService";
 import { ComfyApi } from "./services/comfyApi";
-import { detectImageIntent, synthesizeImagePrompt } from "./services/imagePromptService";
+import { detectImageIntent, synthesizeImagePrompt, synthesizeImageEditPrompt } from "./services/imagePromptService";
+import { mediaService } from "./services/mediaService";
+import { isRtlText } from "./lib/i18n";
 import {
   resolveImageParameters,
   getDefaultImageModelProfile,
@@ -1528,6 +1530,145 @@ export default function App() {
   };
 
   /**
+   * Complete Image Editing Workflow:
+   * Supports img2img and inpainting via ComfyUI, with mask support, reference images,
+   * natural-language instruction preservation in EN/FA, and media storage persistence.
+   */
+  const handleApplyImageEdit = async (params: {
+    messageId: string;
+    sourceImageUrl: string;
+    editInstruction: string;
+    maskDataUrl?: string;
+    referenceImages?: FileAttachment[];
+    toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt";
+  }): Promise<string | null> => {
+    let currentImageModel = selectedImageModel || (imageModels.length > 0 ? imageModels[0] : null);
+    if (!currentImageModel && imageModels.length > 0) {
+      currentImageModel = imageModels[0];
+      setSelectedImageModel(currentImageModel);
+      Storage.saveSelectedImageModel(currentImageModel);
+    }
+
+    if (!currentImageModel) {
+      throw new Error(
+        settings.language === "fa"
+          ? "هیچ مدلی برای ComfyUI انتخاب نشده است. لطفاً ابتدا از بخش مدیریت مدل‌ها، یک چک‌پوینت را انتخاب نمایید."
+          : "No ComfyUI checkpoint selected. Please ensure ComfyUI is running and select a model checkpoint."
+      );
+    }
+
+    // 1. Upload source image to ComfyUI
+    let sourceUpload: { name: string };
+    try {
+      sourceUpload = await ComfyApi.uploadImage({
+        imageDataUrl: params.sourceImageUrl,
+        endpoint: settings.comfyUiEndpoint,
+      });
+    } catch (err: any) {
+      throw new Error(`Failed to upload source image to ComfyUI: ${err.message || err}`);
+    }
+
+    // 2. Upload mask if present (for inpainting)
+    let maskUpload: { name: string } | undefined = undefined;
+    if (params.maskDataUrl) {
+      try {
+        maskUpload = await ComfyApi.uploadImage({
+          imageDataUrl: params.maskDataUrl,
+          endpoint: settings.comfyUiEndpoint,
+        });
+      } catch (err: any) {
+        console.warn("Mask upload error, falling back to full img2img:", err);
+      }
+    }
+
+    // 3. Multi-image references:
+    let finalPrompt = params.editInstruction.trim();
+    if (params.referenceImages && params.referenceImages.length > 0) {
+      const refNames = params.referenceImages.map((r) => r.name).join(", ");
+      finalPrompt = `${finalPrompt}. Incorporate visual features and styling from reference image (${refNames}).`;
+    }
+
+    // 4. Translate or refine instruction if Persian
+    if (isRtlText(finalPrompt) || settings.language === "fa") {
+      try {
+        const translated = await synthesizeImageEditPrompt({
+          editInstruction: finalPrompt,
+          chatModel: selectedModel || "llama3",
+          settings,
+        });
+        if (translated && translated.trim()) {
+          finalPrompt = translated.trim();
+        }
+      } catch (e) {
+        console.warn("Edit prompt translation fallback:", e);
+      }
+    }
+
+    // 5. Submit to ComfyUI
+    const promptRes = await ComfyApi.queueImg2ImgPrompt({
+      checkpoint: currentImageModel,
+      prompt: finalPrompt,
+      sourceImageFilename: sourceUpload.name,
+      maskImageFilename: maskUpload?.name,
+      denoise: maskUpload ? 0.85 : 0.70,
+      endpoint: settings.comfyUiEndpoint,
+    });
+
+    // 6. Track Prompt
+    const result = await ComfyApi.trackPrompt({
+      promptId: promptRes.prompt_id,
+      endpoint: settings.comfyUiEndpoint,
+    });
+
+    // 7. Persist to Media Storage
+    const saved = await mediaService.saveMedia(result.imageUrl, result.filename, {
+      tool: params.toolUsed || "edit-prompt",
+      sourceImageUrl: params.sourceImageUrl,
+      editInstruction: params.editInstruction,
+      model: currentImageModel,
+      messageId: params.messageId,
+      conversationId: activeConversationId,
+    });
+
+    // 8. Update conversation state with the new image version
+    setConversations((prev) => {
+      const updated = prev.map((c) =>
+        c.id === activeConversationId
+          ? {
+              ...c,
+              updatedAt: Date.now(),
+              messages: c.messages.map((m) =>
+                m.id === params.messageId
+                  ? {
+                      ...m,
+                      imageGeneration: m.imageGeneration
+                        ? {
+                            ...m.imageGeneration,
+                            imageUrl: saved.url,
+                            status: "completed" as const,
+                            completedAt: Date.now(),
+                          }
+                        : {
+                            status: "completed" as const,
+                            imageUrl: saved.url,
+                            createdAt: Date.now(),
+                            completedAt: Date.now(),
+                            originalRequest: params.editInstruction,
+                          },
+                    }
+                  : m
+              ),
+            }
+          : c
+      );
+      Storage.saveConversations(updated);
+      return updated;
+    });
+
+    return saved.url;
+  };
+
+  /**
    * Direct Image Generation Workflow:
    * Bypasses Ollama and any text LLM completely in application logic.
    * Directly sends the exact user input prompt to ComfyUI.
@@ -1944,6 +2085,7 @@ export default function App() {
                   error={globalError}
                   onDismissError={() => setGlobalError(null)}
                   language={settings.language}
+                  onApplyImageEdit={handleApplyImageEdit}
                 />
 
                 {/* Chat Input Composer at bottom */}

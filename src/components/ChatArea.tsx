@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { ArrowDown, AlertCircle } from "lucide-react";
-import { ChatMessage, OllamaModel, AIActivityState } from "../types";
+import { ChatMessage, OllamaModel, AIActivityState, FileAttachment } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { EmptyState } from "./EmptyState";
 import { QuestionNavigator } from "./QuestionNavigator";
@@ -24,6 +24,14 @@ interface ChatAreaProps {
   error?: string | null;
   onDismissError?: () => void;
   language?: Language;
+  onApplyImageEdit?: (params: {
+    messageId: string;
+    sourceImageUrl: string;
+    editInstruction: string;
+    maskDataUrl?: string;
+    referenceImages?: FileAttachment[];
+    toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt";
+  }) => Promise<string | null>;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -44,6 +52,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   error,
   onDismissError,
   language = "en",
+  onApplyImageEdit,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -164,6 +173,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               isStreaming={msg.isStreaming}
               activeActivityState={lastAssistantMsg?.id === msg.id ? activeActivityState : undefined}
               language={language}
+              selectedModel={selectedModel}
+              onApplyImageEdit={onApplyImageEdit}
             />
           ))}
 
