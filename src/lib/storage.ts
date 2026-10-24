@@ -19,6 +19,8 @@ const STORAGE_KEYS = {
   ACTIVE_ID: "ollama_chat_active_id",
   SETTINGS: "ollama_chat_settings",
   SELECTED_MODEL: "ollama_chat_selected_model",
+  SELECTED_IMAGE_MODEL: "ollama_chat_selected_image_model",
+  COMFY_ENDPOINT: "ollama_chat_comfy_endpoint",
   MODEL_PROFILES: "ollama_chat_model_profiles",
   FAVORITE_MODELS: "ollama_chat_favorite_models",
   FOLDERS: "ollama_chat_folders",
@@ -124,6 +126,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enterToSend: true,
   theme: "dark",
   language: "en",
+  comfyUiEndpoint: "http://127.0.0.1:8188",
+  selectedImageModel: null,
 };
 
 export const Storage = {
@@ -205,6 +209,26 @@ export const Storage = {
       localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, modelName);
     } catch (e) {
       console.error("Failed to save selected model:", e);
+    }
+  },
+
+  getSelectedImageModel(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SELECTED_IMAGE_MODEL);
+    } catch {
+      return null;
+    }
+  },
+
+  saveSelectedImageModel(modelName: string | null): void {
+    try {
+      if (modelName) {
+        localStorage.setItem(STORAGE_KEYS.SELECTED_IMAGE_MODEL, modelName);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.SELECTED_IMAGE_MODEL);
+      }
+    } catch (e) {
+      console.error("Failed to save selected image model:", e);
     }
   },
 

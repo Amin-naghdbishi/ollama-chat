@@ -11,10 +11,13 @@ import {
   ModelProfileSettings,
   AIActivityState,
   AIActivityPhase,
+  ServicesStatusResponse,
 } from "./types";
 import { Storage, DEFAULT_SETTINGS } from "./lib/storage";
 import { OllamaApi, detectModelCapabilities } from "./services/ollamaApi";
 import { ProviderService } from "./services/providerService";
+import { ComfyApi } from "./services/comfyApi";
+import { detectImageIntent, synthesizeImagePrompt } from "./services/imagePromptService";
 import { FALLBACK_DEMO_MODELS } from "./lib/constants";
 import { pruneMessagesForContext } from "./lib/contextUtils";
 import { ThemeEngine } from "./lib/themeEngine";
@@ -85,6 +88,17 @@ export default function App() {
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(() => Storage.getSelectedModel());
   const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+  // Image Generation Models & Service State
+  const [selectedImageModel, setSelectedImageModel] = useState<string | null>(() => Storage.getSelectedImageModel());
+  const [imageModels, setImageModels] = useState<string[]>([]);
+  const [isLoadingImageModels, setIsLoadingImageModels] = useState(false);
+  const [servicesStatus, setServicesStatus] = useState<ServicesStatusResponse>({
+    ollama: { state: "Stopped", url: settings.endpoint, lastChecked: 0 },
+    comfyui: { state: "Stopped", url: settings.comfyUiEndpoint || "http://127.0.0.1:8188", lastChecked: 0 },
+  });
+  const [isStartingOllama, setIsStartingOllama] = useState(false);
+  const [isStartingComfy, setIsStartingComfy] = useState(false);
 
   // Conversations & Folders State
   const [conversations, setConversations] = useState<Conversation[]>(() => Storage.getConversations());
@@ -233,6 +247,15 @@ export default function App() {
     }
   }, [selectedModel]);
 
+  useEffect(() => {
+    Storage.saveSelectedImageModel(selectedImageModel);
+  }, [selectedImageModel]);
+
+  const handleSelectImageModel = (modelName: string) => {
+    setSelectedImageModel(modelName);
+    Storage.saveSelectedImageModel(modelName);
+  };
+
   // Per-Model Profile Handler
   const handleSelectModel = (modelName: string) => {
     // Save current profile
@@ -318,6 +341,84 @@ export default function App() {
       setIsLoadingModels(false);
     }
   }, [settings, selectedModel]);
+
+  const checkServicesAndImageModels = useCallback(async () => {
+    try {
+      const status = await ComfyApi.getServicesStatus(settings.endpoint, settings.comfyUiEndpoint);
+      setServicesStatus(status);
+    } catch (e) {
+      console.warn("Failed to get services status:", e);
+    }
+
+    setIsLoadingImageModels(true);
+    try {
+      const ckpts = await ComfyApi.fetchCheckpoints(settings.comfyUiEndpoint);
+      setImageModels(ckpts);
+      if (ckpts.length > 0) {
+        setSelectedImageModel((prev) => {
+          if (!prev || !ckpts.includes(prev)) {
+            Storage.saveSelectedImageModel(ckpts[0]);
+            return ckpts[0];
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to fetch ComfyUI checkpoints:", e);
+    } finally {
+      setIsLoadingImageModels(false);
+    }
+  }, [settings.endpoint, settings.comfyUiEndpoint]);
+
+  const handleStartOllama = async () => {
+    setIsStartingOllama(true);
+    try {
+      await ComfyApi.startService("ollama");
+      await checkHealthAndModels();
+      await checkServicesAndImageModels();
+    } catch (e: any) {
+      console.error("Start Ollama error:", e);
+    } finally {
+      setIsStartingOllama(false);
+    }
+  };
+
+  const handleStopOllama = async () => {
+    try {
+      await ComfyApi.stopService("ollama");
+      await checkHealthAndModels();
+      await checkServicesAndImageModels();
+    } catch (e: any) {
+      console.error("Stop Ollama error:", e);
+    }
+  };
+
+  const handleStartComfy = async () => {
+    setIsStartingComfy(true);
+    try {
+      await ComfyApi.startService("comfyui");
+      await checkServicesAndImageModels();
+    } catch (e: any) {
+      console.error("Start ComfyUI error:", e);
+    } finally {
+      setIsStartingComfy(false);
+    }
+  };
+
+  const handleStopComfy = async () => {
+    try {
+      await ComfyApi.stopService("comfyui");
+      await checkServicesAndImageModels();
+    } catch (e: any) {
+      console.error("Stop ComfyUI error:", e);
+    }
+  };
+
+  useEffect(() => {
+    checkServicesAndImageModels();
+    const interval = setInterval(checkServicesAndImageModels, 5000);
+    return () => clearInterval(interval);
+  }, [checkServicesAndImageModels]);
 
   useEffect(() => {
     ThemeEngine.applyTheme(settings.theme || "dark");
@@ -866,6 +967,44 @@ export default function App() {
       return copy;
     });
 
+    // Check if the user is explicitly requesting image generation
+    const historyForApi = [...targetConv.messages, userMsg];
+    const { isImageRequest } = detectImageIntent(content);
+
+    if (isImageRequest) {
+      const currentImageModel = selectedImageModel || (imageModels.length > 0 ? imageModels[0] : null);
+      const imageAssistantMsg: ChatMessage = {
+        id: assistantMsgId,
+        role: "assistant",
+        content: "",
+        modelUsed: currentImageModel || "ComfyUI",
+        timestamp: Date.now(),
+        imageGeneration: {
+          status: "prompting",
+          originalRequest: content,
+          modelUsed: currentImageModel || undefined,
+          createdAt: Date.now(),
+        },
+      };
+
+      const updatedMessagesWithImage = [...targetConv.messages, userMsg, imageAssistantMsg];
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === currentConvId
+            ? {
+                ...c,
+                modelId: modelToUse,
+                updatedAt: Date.now(),
+                messages: updatedMessagesWithImage,
+              }
+            : c
+        )
+      );
+
+      executeImageGeneration(currentConvId, historyForApi, assistantMsgId, content);
+      return;
+    }
+
     setConversations((prev) =>
       prev.map((c) =>
         c.id === currentConvId
@@ -880,7 +1019,6 @@ export default function App() {
     );
 
     // Execute Stream Request with history up to user message
-    const historyForApi = [...targetConv.messages, userMsg];
     executeChatRequest(currentConvId, historyForApi, assistantMsgId, modelToUse);
   };
 
@@ -1072,6 +1210,279 @@ export default function App() {
     );
   };
 
+  // Image Generation Handlers
+  const executeImageGeneration = async (
+    conversationId: string,
+    historyMessages: ChatMessage[],
+    assistantMessageId: string,
+    userPrompt: string
+  ) => {
+    setIsGenerating(true);
+    setGlobalError(null);
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    const currentChatModel = selectedModel || "ollama";
+    let currentImageModel = selectedImageModel || (imageModels.length > 0 ? imageModels[0] : null);
+
+    if (!currentImageModel && imageModels.length > 0) {
+      currentImageModel = imageModels[0];
+      setSelectedImageModel(currentImageModel);
+      Storage.saveSelectedImageModel(currentImageModel);
+    }
+
+    if (!currentImageModel) {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          status: "failed",
+                          originalRequest: userPrompt,
+                          error: "No ComfyUI checkpoint selected. Please ensure ComfyUI is running with checkpoints and select a checkpoint.",
+                          createdAt: Date.now(),
+                          completedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      // Phase 1: Synthesize Prompt using Chat Model and Context
+      const enhancedPrompt = await synthesizeImagePrompt({
+        userPrompt,
+        conversationHistory: historyMessages,
+        chatModel: currentChatModel,
+        settings,
+        signal: abortController.signal,
+      });
+
+      // Update message state: Queued
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          status: "queued",
+                          originalRequest: userPrompt,
+                          enhancedPrompt,
+                          modelUsed: currentImageModel || undefined,
+                          createdAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+
+      // Phase 2: Submit to ComfyUI
+      const promptRes = await ComfyApi.queuePrompt({
+        checkpoint: currentImageModel,
+        prompt: enhancedPrompt,
+        endpoint: settings.comfyUiEndpoint,
+      });
+
+      // Update message state: Processing
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          status: "processing",
+                          promptId: promptRes.prompt_id,
+                          originalRequest: userPrompt,
+                          enhancedPrompt,
+                          modelUsed: currentImageModel || undefined,
+                          progress: 0,
+                          step: 0,
+                          totalSteps: 20,
+                          createdAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+
+      // Phase 3: Track Progress & Download
+      const result = await ComfyApi.trackPrompt({
+        promptId: promptRes.prompt_id,
+        endpoint: settings.comfyUiEndpoint,
+        signal: abortController.signal,
+        onProgress: ({ step, totalSteps, percent }) => {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId
+                        ? {
+                            ...m,
+                            imageGeneration: {
+                              ...m.imageGeneration!,
+                              status: "processing",
+                              step,
+                              totalSteps,
+                              progress: percent,
+                            },
+                          }
+                        : m
+                    ),
+                  }
+                : c
+            )
+          );
+        },
+      });
+
+      // Phase 4: Completed
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          ...m.imageGeneration!,
+                          status: "completed",
+                          imageUrl: result.imageUrl,
+                          completedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+    } catch (err: any) {
+      const isAborted = err.name === "AbortError" || err.message?.includes("aborted");
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          ...m.imageGeneration!,
+                          status: isAborted ? "interrupted" : "failed",
+                          error: isAborted ? undefined : err.message || "Failed to generate image.",
+                          completedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+    } finally {
+      setIsGenerating(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleRetryImage = (messageId: string) => {
+    if (!activeConversation) return;
+    const msg = activeConversation.messages.find((m) => m.id === messageId);
+    if (!msg || !msg.imageGeneration) return;
+
+    const originalRequest = msg.imageGeneration.originalRequest || msg.content || "create an image";
+    const msgIndex = activeConversation.messages.indexOf(msg);
+    const historyUpToMsg = activeConversation.messages.slice(0, msgIndex);
+    const currentImageModel = selectedImageModel || msg.imageGeneration.modelUsed || (imageModels.length > 0 ? imageModels[0] : null);
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeConversation.id
+          ? {
+              ...c,
+              messages: c.messages.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      imageGeneration: {
+                        status: "prompting",
+                        originalRequest,
+                        modelUsed: currentImageModel || undefined,
+                        createdAt: Date.now(),
+                      },
+                    }
+                  : m
+              ),
+            }
+          : c
+      )
+    );
+
+    executeImageGeneration(activeConversation.id, historyUpToMsg, messageId, originalRequest);
+  };
+
+  const handleStopImage = async (messageId: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    await ComfyApi.interrupt(settings.comfyUiEndpoint);
+    if (activeConversation) {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConversation.id
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === messageId && m.imageGeneration
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          ...m.imageGeneration,
+                          status: "interrupted",
+                          completedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+    }
+    setIsGenerating(false);
+  };
+
   // Clear All Data
   const handleClearAllData = () => {
     localStorage.clear();
@@ -1123,6 +1534,21 @@ export default function App() {
               selectedModel={selectedModel}
               models={models}
               onOpenModelPicker={() => navigateToView({ type: "model-selection" })}
+              selectedImageModel={selectedImageModel}
+              imageModels={imageModels}
+              isLoadingImageModels={isLoadingImageModels}
+              onSelectImageModel={handleSelectImageModel}
+              onRefreshImageModels={checkServicesAndImageModels}
+              ollamaServiceState={servicesStatus.ollama?.state || (connectionStatus.isConnected ? "Running" : "Stopped")}
+              ollamaServiceError={servicesStatus.ollama?.error}
+              onStartOllama={handleStartOllama}
+              onStopOllama={handleStopOllama}
+              isStartingOllama={isStartingOllama}
+              comfyServiceState={servicesStatus.comfyui?.state || "Stopped"}
+              comfyServiceError={servicesStatus.comfyui?.error}
+              onStartComfy={handleStartComfy}
+              onStopComfy={handleStopComfy}
+              isStartingComfy={isStartingComfy}
               isModelSpecsOpen={isModelSpecsOpen}
               onToggleModelSpecs={() => setIsModelSpecsOpen((prev) => !prev)}
               liveMetrics={liveMetrics}
@@ -1166,6 +1592,8 @@ export default function App() {
                   onRetryMessage={handleRetryMessage}
                   onContinueMessage={handleContinueMessage}
                   onFinishMessage={handleFinishMessage}
+                  onRetryImage={handleRetryImage}
+                  onStopImage={handleStopImage}
                   onEditMessage={handleEditMessage}
                   onDeleteMessage={handleDeleteMessage}
                   isGenerating={isGenerating}
@@ -1311,6 +1739,17 @@ export default function App() {
             onBack={handleBack}
             onOpenModelDetails={(name) => navigateToView({ type: "model-details", modelName: name })}
             onOpenModelProfile={(name) => navigateToView({ type: "model-profile", modelName: name })}
+            selectedImageModel={selectedImageModel}
+            imageModels={imageModels}
+            isLoadingImageModels={isLoadingImageModels}
+            onSelectImageModel={handleSelectImageModel}
+            onRefreshImageModels={checkServicesAndImageModels}
+            ollamaServiceState={servicesStatus.ollama?.state || (connectionStatus.isConnected ? "Running" : "Stopped")}
+            onStartOllama={handleStartOllama}
+            onStopOllama={handleStopOllama}
+            comfyServiceState={servicesStatus.comfyui?.state || "Stopped"}
+            onStartComfy={handleStartComfy}
+            onStopComfy={handleStopComfy}
           />
         )}
 

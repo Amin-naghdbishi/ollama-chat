@@ -15,6 +15,8 @@ interface ChatAreaProps {
   onRetryMessage: (messageId: string) => void;
   onContinueMessage?: (messageId: string) => void;
   onFinishMessage?: (messageId: string) => void;
+  onRetryImage?: (messageId: string) => void;
+  onStopImage?: (messageId: string) => void;
   onEditMessage: (messageId: string, newContent: string) => void;
   onDeleteMessage: (messageId: string) => void;
   isGenerating: boolean;
@@ -33,6 +35,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onRetryMessage,
   onContinueMessage,
   onFinishMessage,
+  onRetryImage,
+  onStopImage,
   onEditMessage,
   onDeleteMessage,
   isGenerating,
@@ -152,6 +156,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               onRetry={onRetryMessage}
               onContinue={onContinueMessage}
               onFinish={onFinishMessage}
+              onRetryImage={onRetryImage}
+              onStopImage={onStopImage}
               onEdit={onEditMessage}
               onDelete={onDeleteMessage}
               isLastAssistantMessage={lastAssistantMsg?.id === msg.id}

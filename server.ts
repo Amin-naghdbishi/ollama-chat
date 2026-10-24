@@ -1,10 +1,18 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
+import { serviceManager } from "./src/server/serviceManager";
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Ensure generated images storage directory exists
+  const IMAGES_DIR = path.join(process.cwd(), "data", "generated_images");
+  if (!fs.existsSync(IMAGES_DIR)) {
+    fs.mkdirSync(IMAGES_DIR, { recursive: true });
+  }
 
   // JSON middleware
   app.use(express.json({ limit: "50mb" }));
@@ -13,7 +21,7 @@ async function startServer() {
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Ollama-Endpoint");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Ollama-Endpoint, X-ComfyUI-Endpoint, X-Target-URL, X-Target-API-Key, X-Target-Org-Id, X-Title, HTTP-Referer");
     if (req.method === "OPTIONS") {
       res.sendStatus(204);
       return;
@@ -181,6 +189,168 @@ async function startServer() {
         error: `Failed to connect to provider endpoint at ${targetUrl}: ${err.message}`,
         details: err.message,
       });
+    }
+  });
+
+  // Helper function to resolve ComfyUI target URLs
+  const getComfyTargets = (req: express.Request): { primary: string; fallback: string } => {
+    const customEndpoint = req.headers["x-comfyui-endpoint"] as string;
+    let base = customEndpoint && customEndpoint.trim() ? customEndpoint.trim().replace(/\/$/, "") : "http://127.0.0.1:8188";
+
+    if (base.includes("localhost")) {
+      const primary = base.replace("://localhost", "://127.0.0.1");
+      return { primary, fallback: base };
+    } else if (base.includes("127.0.0.1")) {
+      const fallback = base.replace("://127.0.0.1", "://localhost");
+      return { primary: base, fallback };
+    }
+
+    return { primary: base, fallback: base };
+  };
+
+  // Proxy endpoint for ComfyUI API
+  app.all("/api/comfyui/*", async (req, res) => {
+    const { primary, fallback } = getComfyTargets(req);
+    const subPath = req.params[0] || "";
+    // Extract query string from original URL
+    const qIndex = req.originalUrl.indexOf("?");
+    const queryString = qIndex !== -1 ? req.originalUrl.slice(qIndex) : "";
+
+    const headers: Record<string, string> = {};
+    if (req.headers["content-type"]) {
+      headers["Content-Type"] = req.headers["content-type"] as string;
+    }
+
+    const fetchOptions: RequestInit = {
+      method: req.method,
+      headers,
+    };
+
+    if (["POST", "PUT", "PATCH"].includes(req.method.toUpperCase()) && req.body) {
+      fetchOptions.body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    }
+
+    let response: Response | null = null;
+    let lastError: any = null;
+
+    try {
+      response = await fetch(`${primary}/${subPath}${queryString}`, fetchOptions);
+    } catch (err: any) {
+      lastError = err;
+      if (fallback !== primary) {
+        try {
+          response = await fetch(`${fallback}/${subPath}${queryString}`, fetchOptions);
+        } catch (err2: any) {
+          lastError = err2;
+        }
+      }
+    }
+
+    if (response) {
+      res.status(response.status);
+      const contentType = response.headers.get("content-type");
+      if (contentType) {
+        res.setHeader("Content-Type", contentType);
+      }
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+        res.end();
+      } else {
+        const text = await response.text();
+        res.send(text);
+      }
+    } else {
+      const errorMsg = lastError?.message || "Connection failed";
+      res.status(502).json({
+        error: `ComfyUI service is not reachable at ${primary}. Please ensure ComfyUI is running on port 8188.`,
+        code: "COMFYUI_NOT_RUNNING",
+        details: errorMsg,
+      });
+    }
+  });
+
+  // Service Management Endpoints
+  app.get("/api/services/status", async (req, res) => {
+    const customOllama = req.headers["x-ollama-endpoint"] as string;
+    const customComfy = req.headers["x-comfyui-endpoint"] as string;
+
+    if (customOllama) serviceManager.ollamaUrl = customOllama.replace(/\/$/, "");
+    if (customComfy) serviceManager.comfyUrl = customComfy.replace(/\/$/, "");
+
+    const ollama = await serviceManager.getOllamaStatus();
+    const comfyui = await serviceManager.getComfyStatus();
+    res.json({ ollama, comfyui });
+  });
+
+  app.post("/api/services/ollama/start", async (_req, res) => {
+    const result = await serviceManager.startOllama();
+    res.json(result);
+  });
+
+  app.post("/api/services/ollama/stop", async (_req, res) => {
+    const result = await serviceManager.stopOllama();
+    res.json(result);
+  });
+
+  app.post("/api/services/comfyui/start", async (_req, res) => {
+    const result = await serviceManager.startComfy();
+    res.json(result);
+  });
+
+  app.post("/api/services/comfyui/stop", async (_req, res) => {
+    const result = await serviceManager.stopComfy();
+    res.json(result);
+  });
+
+  // Persistent Generated Image Storage Endpoints
+  app.post("/api/generated-images", async (req, res) => {
+    try {
+      const { dataUrl, filename } = req.body;
+      if (!dataUrl || typeof dataUrl !== "string") {
+        res.status(400).json({ error: "Missing or invalid dataUrl" });
+        return;
+      }
+
+      const match = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!match) {
+        res.status(400).json({ error: "Invalid base64 data format" });
+        return;
+      }
+
+      const ext = match[1].includes("jpeg") || match[1].includes("jpg") ? "jpg" : "png";
+      const imageId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const filePath = path.join(IMAGES_DIR, imageId);
+      const buffer = Buffer.from(match[2], "base64");
+
+      fs.writeFileSync(filePath, buffer);
+      res.json({
+        id: imageId,
+        url: `/api/generated-images/${imageId}`,
+        filename: filename || imageId,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: `Failed to save image: ${err.message}` });
+    }
+  });
+
+  app.get("/api/generated-images/:id", (req, res) => {
+    const safeFilename = path.basename(req.params.id);
+    const filePath = path.join(IMAGES_DIR, safeFilename);
+
+    if (fs.existsSync(filePath)) {
+      const ext = path.extname(filePath).toLowerCase();
+      const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png";
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      fs.createReadStream(filePath).pipe(res);
+    } else {
+      res.status(404).json({ error: "Image not found" });
     }
   });
 

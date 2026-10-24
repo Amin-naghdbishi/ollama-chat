@@ -15,9 +15,12 @@ import {
   X,
   Plus,
   Play,
+  Square,
+  Loader2,
   Sparkles,
+  Image as ImageIcon,
 } from "lucide-react";
-import { OllamaModel, AppSettings } from "../../types";
+import { OllamaModel, AppSettings, ServiceState } from "../../types";
 import { formatBytes } from "../../lib/formatters";
 import { detectModelCapabilities } from "../../services/ollamaApi";
 import { Storage } from "../../lib/storage";
@@ -32,6 +35,18 @@ interface ModelSelectionViewProps {
   onBack: () => void;
   onOpenModelDetails: (modelName: string) => void;
   onOpenModelProfile: (modelName: string) => void;
+  // Image Generation Models & Service Controls
+  selectedImageModel?: string | null;
+  imageModels?: string[];
+  isLoadingImageModels?: boolean;
+  onSelectImageModel?: (modelName: string) => void;
+  onRefreshImageModels?: () => void;
+  ollamaServiceState?: ServiceState;
+  onStartOllama?: () => void;
+  onStopOllama?: () => void;
+  comfyServiceState?: ServiceState;
+  onStartComfy?: () => void;
+  onStopComfy?: () => void;
 }
 
 export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
@@ -44,7 +59,19 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
   onBack,
   onOpenModelDetails,
   onOpenModelProfile,
+  selectedImageModel,
+  imageModels = [],
+  isLoadingImageModels = false,
+  onSelectImageModel,
+  onRefreshImageModels,
+  ollamaServiceState = "Stopped",
+  onStartOllama,
+  onStopOllama,
+  comfyServiceState = "Stopped",
+  onStartComfy,
+  onStopComfy,
 }) => {
+  const [activeTab, setActiveTab] = useState<"chat" | "image">("chat");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "vision" | "reasoning" | "favorites">("all");
   const [sortBy, setSortBy] = useState<"name" | "size" | "family">("name");
@@ -89,6 +116,10 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
       return a.name.localeCompare(b.name);
     });
 
+  const filteredImageModels = imageModels.filter((m) =>
+    m.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -130,26 +161,197 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />
             <h1 className="font-semibold text-sm text-[var(--text-primary,#e6e9f0)]">Select Model</h1>
-            <span className="hidden sm:inline-block text-xs text-[var(--text-muted,#6b7280)] font-mono">
-              ({models.length} installed)
-            </span>
+          </div>
+
+          {/* Model Type Selector Tabs */}
+          <div className="flex items-center gap-1 p-0.5 bg-[var(--bg-primary,#111)] border border-[var(--border-subtle,#20222c)] rounded-xl ml-2">
+            <button
+              onClick={() => setActiveTab("chat")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                activeTab === "chat"
+                  ? "bg-[var(--bg-surface,#232530)] text-[var(--text-primary,#eee)] shadow-xs"
+                  : "text-[var(--text-muted,#888)] hover:text-[var(--text-primary,#eee)]"
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)]" />
+              <span>Chat ({models.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("image")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                activeTab === "image"
+                  ? "bg-pink-950/60 text-pink-200 border border-pink-700/50 shadow-xs"
+                  : "text-[var(--text-muted,#888)] hover:text-pink-300"
+              }`}
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-pink-400" />
+              <span>Image ({imageModels.length})</span>
+            </button>
           </div>
         </div>
 
         <button
-          onClick={onRefreshModels}
-          disabled={isLoadingModels}
+          onClick={activeTab === "chat" ? onRefreshModels : onRefreshImageModels}
+          disabled={activeTab === "chat" ? isLoadingModels : isLoadingImageModels}
           className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1.5 text-xs font-medium cursor-pointer"
           title="Refresh models list"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingModels ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Refresh Models</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${(activeTab === "chat" ? isLoadingModels : isLoadingImageModels) ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh</span>
         </button>
       </header>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
         <div className="max-w-4xl mx-auto space-y-4">
+          {activeTab === "image" ? (
+            <div className="space-y-4">
+              {/* ComfyUI Service Status & Controls Banner */}
+              <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-pink-950/40 border border-pink-800/40 flex items-center justify-center text-pink-400 shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-xs text-[var(--text-primary,#eee)]">ComfyUI Service</span>
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          comfyServiceState === "Running"
+                            ? "bg-emerald-400"
+                            : comfyServiceState === "Starting"
+                            ? "bg-amber-400 animate-pulse"
+                            : comfyServiceState === "Error"
+                            ? "bg-red-500"
+                            : "bg-neutral-500"
+                        }`}
+                      />
+                      <span className="text-[11px] font-mono text-[var(--text-muted,#888)]">({comfyServiceState})</span>
+                    </div>
+                    <span className="text-[11px] text-[var(--text-muted,#777)] font-mono block mt-0.5">
+                      Endpoint: {settings.comfyUiEndpoint || "http://127.0.0.1:8188"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {comfyServiceState === "Running" ? (
+                    <button
+                      onClick={onStopComfy}
+                      className="px-3 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 border border-red-800/70 text-red-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                      <span>Stop Service</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onStartComfy}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-800/70 text-emerald-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Start Service</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Checkpoint Search */}
+              <div className="relative flex items-center">
+                <Search className="w-4 h-4 text-[var(--text-muted,#6b7280)] absolute left-3.5 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter ComfyUI checkpoints (e.g. sd_xl, v1-5)..."
+                  className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-pink-500/70 font-sans"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3.5 text-[var(--text-muted,#6b7280)] hover:text-[var(--text-secondary,#9ba3b2)] cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Checkpoints List */}
+              <div className="space-y-2">
+                {isLoadingImageModels ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-xs text-[var(--text-muted,#888)] gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-pink-400" />
+                    <span>Loading ComfyUI checkpoints...</span>
+                  </div>
+                ) : filteredImageModels.length > 0 ? (
+                  filteredImageModels.map((ckpt) => {
+                    const isSelected = ckpt === selectedImageModel;
+                    return (
+                      <div
+                        key={ckpt}
+                        onClick={() => onSelectImageModel?.(ckpt)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                          isSelected
+                            ? "bg-pink-950/30 border-pink-700/60 shadow-md"
+                            : "bg-[var(--bg-surface,#1f212a)] border-[var(--border-color,#282a36)] hover:border-pink-500/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 mr-3">
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              isSelected
+                                ? "bg-pink-900/50 text-pink-300"
+                                : "bg-[var(--bg-primary,#16171d)] text-[var(--text-muted,#888)]"
+                            }`}
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-xs text-[var(--text-primary,#eee)] font-mono block truncate" title={ckpt}>
+                              {ckpt}
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-muted,#777)] font-mono">
+                              <span>ComfyUI Checkpoint</span>
+                              <span>•</span>
+                              <span>.safetensors</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isSelected ? (
+                            <span className="px-3 py-1.5 rounded-xl bg-pink-900/60 border border-pink-700 text-pink-200 text-xs font-semibold flex items-center gap-1.5">
+                              <Check className="w-3.5 h-3.5 text-pink-400" />
+                              <span>Active</span>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectImageModel?.(ckpt);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-pink-900/50 border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer font-medium"
+                            >
+                              Select
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] text-center text-xs text-[var(--text-muted,#888)]">
+                    <p className="font-medium text-neutral-300">No checkpoints available</p>
+                    <p className="text-[11px] mt-1 text-neutral-500">
+                      {comfyServiceState !== "Running"
+                        ? "Start ComfyUI service to automatically discover installed checkpoints."
+                        : "Place .safetensors model files into ComfyUI/models/checkpoints/ and refresh."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Search & Filters Toolbar */}
           <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3 shadow-xs">
             {/* Search Input */}
@@ -390,6 +592,8 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
               })
             )}
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -24,6 +24,11 @@ import {
   Zap,
   Clock,
   BarChart2,
+  Maximize2,
+  Download,
+  Sparkles,
+  AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { ChatMessage, FileAttachment, AIActivityState } from "../types";
 import { CodeBlock } from "./CodeBlock";
@@ -37,6 +42,8 @@ interface MessageBubbleProps {
   onDelete?: (messageId: string) => void;
   onContinue?: (messageId: string) => void;
   onFinish?: (messageId: string) => void;
+  onRetryImage?: (messageId: string) => void;
+  onStopImage?: (messageId: string) => void;
   isLastAssistantMessage?: boolean;
   isStreaming?: boolean;
   activeActivityState?: AIActivityState;
@@ -50,6 +57,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onDelete,
   onContinue,
   onFinish,
+  onRetryImage,
+  onStopImage,
   isLastAssistantMessage,
   isStreaming,
   activeActivityState,
@@ -58,6 +67,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [copiedText, setCopiedText] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+  const [showPromptDetails, setShowPromptDetails] = useState(false);
+
+  const handleDownloadImage = (url: string, filename?: string) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || `comfyui-image-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
   const [isThinkingExpanded, setIsThinkingExpanded] = useState(
     message.isThinkingOpen ?? true
   );
@@ -328,6 +347,247 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       <ChevronDown className="w-3.5 h-3.5" />
                     )}
                   </button>
+                )}
+              </div>
+            ) : !isUser && message.imageGeneration ? (
+              <div className="w-full space-y-3">
+                {/* Context-Aware Image Generation Display */}
+                <div className="w-full rounded-2xl overflow-hidden border border-[var(--border-subtle,#20222c)] bg-[var(--bg-secondary,#16171d)] shadow-md transition-all">
+                  {/* Prompting or Queued State */}
+                  {(message.imageGeneration.status === "prompting" || message.imageGeneration.status === "queued") && (
+                    <div className="p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-pink-400">
+                          <Sparkles className="w-4 h-4 animate-spin" />
+                          <span>
+                            {message.imageGeneration.status === "prompting"
+                              ? t("synthesizingPrompt")
+                              : t("queuedInComfy")}
+                          </span>
+                        </div>
+                        {onStopImage && (
+                          <button
+                            onClick={() => onStopImage(message.id)}
+                            className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                            <span>{t("stop")}</span>
+                          </button>
+                        )}
+                      </div>
+                      {message.imageGeneration.enhancedPrompt && (
+                        <p className="text-xs text-[var(--text-secondary,#9ba3b2)] italic bg-[var(--bg-primary,#101115)] p-2.5 rounded-xl border border-[var(--border-subtle,#1e2029)]">
+                          "{message.imageGeneration.enhancedPrompt}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Processing State */}
+                  {message.imageGeneration.status === "processing" && (
+                    <div className="p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-primary,#eee)]">
+                          <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
+                          <span>{t("generatingImageStep")}</span>
+                          <span className="font-mono text-pink-300">
+                            ({message.imageGeneration.step || 0}/{message.imageGeneration.totalSteps || 20})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-pink-400">
+                            {message.imageGeneration.progress || 0}%
+                          </span>
+                          {onStopImage && (
+                            <button
+                              onClick={() => onStopImage(message.id)}
+                              className="px-2 py-0.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                              <span>{t("stop")}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-[var(--bg-primary,#101115)] rounded-full h-2 overflow-hidden border border-[var(--border-subtle,#20222c)]">
+                        <div
+                          className="bg-gradient-to-r from-pink-500 to-indigo-500 h-2 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${message.imageGeneration.progress || 0}%` }}
+                        />
+                      </div>
+                      {message.imageGeneration.enhancedPrompt && (
+                        <p className="text-[11px] text-[var(--text-muted,#777)] italic truncate">
+                          {message.imageGeneration.enhancedPrompt}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Completed State */}
+                  {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl && (
+                    <div className="flex flex-col">
+                      <div className="relative group overflow-hidden bg-black/40 flex items-center justify-center max-h-[500px]">
+                        <img
+                          src={message.imageGeneration.imageUrl}
+                          alt="Generated visual output"
+                          className="w-full h-auto max-h-[500px] object-contain cursor-pointer transition-transform duration-200 group-hover:scale-[1.01]"
+                          onClick={() => setPreviewImage(message.imageGeneration!.imageUrl!)}
+                        />
+                        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/75 backdrop-blur-md p-1.5 rounded-xl border border-white/10">
+                          <button
+                            onClick={() => setPreviewImage(message.imageGeneration!.imageUrl!)}
+                            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                            title={t("viewFullSize")}
+                          >
+                            <Maximize2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDownloadImage(message.imageGeneration!.imageUrl!, `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${message.imageGeneration?.completedAt || Date.now()}.png`)}
+                            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                            title={t("downloadImage")}
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          {onRetryImage && (
+                            <button
+                              onClick={() => onRetryImage(message.id)}
+                              className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                              title={t("retryGeneration")}
+                            >
+                              <RotateCw className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-[var(--bg-surface,#1b1d25)] border-t border-[var(--border-subtle,#20222c)] flex flex-col gap-1.5 text-xs text-[var(--text-secondary,#9ba3b2)]">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="px-2 py-0.5 rounded-md bg-pink-950/60 border border-pink-800/40 text-pink-300 text-[10px] font-mono">
+                              {message.imageGeneration.modelUsed || "ComfyUI"}
+                            </span>
+                            {message.imageGeneration.enhancedPrompt && (
+                              <button
+                                onClick={() => setShowPromptDetails(!showPromptDetails)}
+                                className="text-[11px] hover:text-[var(--text-primary,#eee)] transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Sparkles className="w-3 h-3 text-pink-400" />
+                                <span>{showPromptDetails ? "Hide Prompt" : "Show Prompt"}</span>
+                                <ChevronDown className={`w-3 h-3 transition-transform ${showPromptDetails ? "rotate-180" : ""}`} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleDownloadImage(message.imageGeneration!.imageUrl!, `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${message.imageGeneration?.completedAt || Date.now()}.png`)}
+                              className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#232530)] hover:bg-[var(--btn-hover,#2a2c3a)] text-[var(--text-primary,#eee)] text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>{t("downloadImage")}</span>
+                            </button>
+                            {onRetryImage && (
+                              <button
+                                onClick={() => onRetryImage(message.id)}
+                                className="p-1.5 rounded-lg bg-[var(--btn-bg,#232530)] hover:bg-[var(--btn-hover,#2a2c3a)] text-[var(--text-primary,#eee)] transition-colors cursor-pointer"
+                                title={t("retryGeneration")}
+                              >
+                                <RotateCw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {showPromptDetails && message.imageGeneration.enhancedPrompt && (
+                          <p className="mt-2 p-2.5 rounded-xl bg-[var(--bg-primary,#101115)] border border-[var(--border-subtle,#1e2029)] text-[11.5px] leading-relaxed text-[var(--text-primary,#e4e4e7)]">
+                            {message.imageGeneration.enhancedPrompt}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Failed State */}
+                  {message.imageGeneration.status === "failed" && (
+                    <div className="p-4 flex flex-col gap-2.5 bg-red-950/30 border border-red-800/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-red-300 text-xs font-semibold">
+                          <AlertTriangle className="w-4 h-4 text-red-400" />
+                          <span>Image generation failed</span>
+                        </div>
+                        {onRetryImage && (
+                          <button
+                            onClick={() => onRetryImage(message.id)}
+                            className="px-2.5 py-1 rounded-lg bg-red-900/60 hover:bg-red-800/80 text-red-100 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                            <span>{t("retry")}</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-red-300/80 leading-relaxed">
+                        {message.imageGeneration.error || "Failed to generate image. Please check ComfyUI status and selected checkpoint."}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Interrupted State */}
+                  {message.imageGeneration.status === "interrupted" && (
+                    <div className="p-3.5 flex items-center justify-between bg-amber-950/30 border border-amber-800/50 text-amber-200 text-xs">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-400" />
+                        <span>Generation was stopped by user.</span>
+                      </div>
+                      {onRetryImage && (
+                        <button
+                          onClick={() => onRetryImage(message.id)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-900/60 hover:bg-amber-800/80 text-amber-100 text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <RotateCw className="w-3 h-3" />
+                          <span>{t("retry")}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional Assistant Text if present */}
+                {message.content && (
+                  <div
+                    dir={isRtl ? "rtl" : "ltr"}
+                    className="markdown-body max-w-none text-[var(--text-primary,#f3f4f6)] text-[15px] sm:text-[15.5px] leading-[1.75] space-y-3.5 break-words"
+                  >
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        code({ node, inline, className, children, ...props }: any) {
+                          const match = /language-([\w+#.-]+)/.exec(className || "");
+                          const codeString = String(children).replace(/\n$/, "");
+                          const isMultiLine = String(children).includes("\n");
+                          const isBlock = match || isMultiLine || (!inline && className?.includes("language-"));
+
+                          if (isBlock) {
+                            return (
+                              <CodeBlock
+                                language={match ? match[1] : ""}
+                                value={codeString}
+                              />
+                            );
+                          }
+                          return (
+                            <code
+                              dir="ltr"
+                              className="px-1.5 py-0.5 rounded-md bg-[var(--code-inline-bg)] text-[var(--code-inline-text)] font-mono text-[13px] border border-[var(--border-subtle)] font-medium inline-block my-0.5 align-baseline"
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 )}
               </div>
             ) : !message.content && !message.thinkingContent && (message.isStreaming || isStreaming) ? (
@@ -623,12 +883,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           onClick={() => setPreviewImage(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-900 p-2 shadow-2xl">
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-3 right-3 rtl:right-auto rtl:left-3 p-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="absolute top-3 right-3 rtl:right-auto rtl:left-3 flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownloadImage(previewImage, `image-${Date.now()}.png`);
+                }}
+                className="p-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 cursor-pointer shadow-md"
+                title={t("downloadImage")}
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="p-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 cursor-pointer shadow-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <img
               src={previewImage}
               alt="Preview"

@@ -107,6 +107,45 @@ export interface FileAttachment {
   isImage: boolean;
 }
 
+export interface ImageGenerationData {
+  promptId?: string;
+  status: "prompting" | "queued" | "processing" | "completed" | "failed" | "interrupted";
+  enhancedPrompt?: string;
+  originalRequest?: string;
+  modelUsed?: string; // Selected ComfyUI checkpoint
+  progress?: number; // 0 to 100 percentage
+  step?: number;
+  totalSteps?: number;
+  imageUrl?: string;
+  seed?: number;
+  error?: string;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export type ServiceState = "Running" | "Stopped" | "Starting" | "Error";
+
+export interface ServiceStatusInfo {
+  state: ServiceState;
+  url: string;
+  version?: string;
+  error?: string;
+  isManaged?: boolean;
+  canManage?: boolean;
+  pid?: number;
+  lastChecked?: number;
+}
+
+export interface ServicesStatusResponse {
+  ollama: ServiceStatusInfo;
+  comfyui: ServiceStatusInfo;
+}
+
+export interface ComfyCheckpoint {
+  name: string;
+  path?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -116,6 +155,7 @@ export interface ChatMessage {
   thinkingTimeMs?: number; // Duration of thinking phase
   modelUsed?: string; // Exact model ID used for this response
   attachments?: FileAttachment[];
+  imageGeneration?: ImageGenerationData; // Integrated context-aware image generation state
   timestamp: number;
   isStreaming?: boolean;
   isError?: boolean;
@@ -321,6 +361,8 @@ export interface AppSettings {
   theme: string;
   language: "en" | "fa";
   defaultSystemPrompt?: string; // Legacy field for migration
+  comfyUiEndpoint?: string; // Default: "http://127.0.0.1:8188"
+  selectedImageModel?: string | null; // Selected ComfyUI checkpoint
 }
 
 export interface ModelCapabilityInfo {
