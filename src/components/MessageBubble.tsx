@@ -4,8 +4,6 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import {
-  Bot,
-  User,
   Copy,
   Check,
   RotateCw,
@@ -16,21 +14,14 @@ import {
   ChevronRight,
   Brain,
   FileText,
-  Image as ImageIcon,
   X,
-  Play,
-  CheckCircle,
-  AlertTriangle,
-  Zap,
-  Clock,
-  BarChart2,
-  Maximize2,
   Download,
-  Sparkles,
-  AlertCircle,
-  Loader2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  RotateCcw,
 } from "lucide-react";
-import { ChatMessage, FileAttachment, AIActivityState } from "../types";
+import { ChatMessage, AIActivityState } from "../types";
 import { CodeBlock } from "./CodeBlock";
 import { AIStatusIndicator } from "./AIStatusIndicator";
 import { Language, getTranslation, isRtlText } from "../lib/i18n";
@@ -50,44 +41,178 @@ interface MessageBubbleProps {
   language?: Language;
 }
 
+/**
+ * Dedicated Fullscreen / Large Image Viewer with Substantial Zoom & Smooth Pan
+ */
+const ImageViewerModal: React.FC<{
+  imageUrl: string;
+  onClose: () => void;
+  onDownload: () => void;
+  title?: string;
+}> = ({ imageUrl, onClose, onDownload, title }) => {
+  const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const dragStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Escape key closes modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const handleZoomIn = () => setZoom((prev) => Math.min(5, +(prev * 1.25).toFixed(2)));
+  const handleZoomOut = () => setZoom((prev) => Math.max(0.25, +(prev / 1.25).toFixed(2)));
+  const handleReset = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      handleZoomIn();
+    } else {
+      handleZoomOut();
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setPan({
+      x: e.clientX - dragStart.current.x,
+      y: e.clientY - dragStart.current.y,
+    });
+  };
+
+  const handleMouseUp = () => setIsDragging(false);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex flex-col items-center justify-between select-none animate-fadeIn"
+      onClick={onClose}
+    >
+      {/* Top Floating Control Bar */}
+      <div
+        className="w-full px-4 py-3 flex items-center justify-between bg-black/60 backdrop-blur-md border-b border-white/10 z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 text-xs font-mono text-neutral-300 truncate max-w-sm">
+          <span>{title || "ComfyUI Generated Image"}</span>
+        </div>
+
+        {/* Zoom & View Controls */}
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-neutral-900/90 border border-neutral-700/60 rounded-xl p-1 shadow-lg">
+          <button
+            onClick={handleZoomOut}
+            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+            title="Zoom Out (-)"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <span className="font-mono text-xs px-2 text-neutral-200 min-w-[50px] text-center">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={handleZoomIn}
+            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+            title="Zoom In (+)"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <div className="h-4 w-px bg-neutral-700/60" />
+          <button
+            onClick={handleReset}
+            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+            title="Fit / Reset (100%)"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDownload}
+            className="p-1.5 rounded-lg text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+            title="Download Image"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="p-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700/60 transition-colors cursor-pointer"
+          title="Close (Esc)"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Main Pan/Zoom Stage */}
+      <div
+        className="flex-1 w-full flex items-center justify-center overflow-hidden relative"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        style={{ cursor: isDragging ? "grabbing" : "grab" }}
+      >
+        <div
+          className="transition-transform duration-75 ease-out select-none"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <img
+            src={imageUrl}
+            alt="Full size preview"
+            draggable={false}
+            className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none"
+          />
+        </div>
+      </div>
+
+      {/* Footer Hint */}
+      <div className="py-2 text-[11px] text-neutral-400 font-mono tracking-wider pointer-events-none">
+        Scroll to zoom • Drag to pan • Esc to close
+      </div>
+    </div>
+  );
+};
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onRetry,
   onEdit,
   onDelete,
-  onContinue,
-  onFinish,
   onRetryImage,
   onStopImage,
   isLastAssistantMessage,
   isStreaming,
-  activeActivityState,
   language = "en",
 }) => {
   const [copiedText, setCopiedText] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const [showPromptDetails, setShowPromptDetails] = useState(false);
-
-  const handleDownloadImage = (url: string, filename?: string) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename || `comfyui-image-${Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(
-    message.isThinkingOpen ?? true
-  );
-  const [showStatsDetails, setShowStatsDetails] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isThinkingExpanded, setIsThinkingExpanded] = useState(message.isThinkingOpen ?? true);
   const [isUserExpanded, setIsUserExpanded] = useState(false);
   const [isLongUserMsg, setIsLongUserMsg] = useState(false);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
+
   const userContentRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(language, key);
-
   const isUser = message.role === "user";
   const isRtl = isRtlText(message.content) || (language === "fa" && isRtlText(message.content));
 
@@ -98,11 +223,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         setIsLongUserMsg(true);
       } else if (userContentRef.current) {
         const height = userContentRef.current.scrollHeight;
-        if (height > 280) {
-          setIsLongUserMsg(true);
-        } else {
-          setIsLongUserMsg(false);
-        }
+        setIsLongUserMsg(height > 280);
       } else {
         setIsLongUserMsg(false);
       }
@@ -115,7 +236,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     setTimeout(() => setCopiedText(false), 2000);
   };
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const handleDownloadImage = (url: string, filename?: string) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || `comfyui-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   // Auto-grow and focus logic for message editing
   useEffect(() => {
@@ -154,65 +282,47 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
+  const hasDefensibleProgress =
+    typeof message.imageGeneration?.progress === "number" &&
+    message.imageGeneration.progress > 0;
+
   return (
     <div
       id={`message-${message.id}`}
-      className={`group flex gap-3.5 sm:gap-4 px-2 sm:px-4 py-3 my-1.5 transition-colors ${
-        isUser ? "flex-row-reverse" : "flex-row"
+      className={`group flex px-2 sm:px-4 py-2.5 my-1 transition-colors ${
+        isUser ? "justify-end" : "justify-start w-full"
       }`}
     >
-      {/* Avatar */}
+      {/* Message Body Container (Simplified: No AI avatar box, No redundant labels) */}
       <div
-        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-2xl flex items-center justify-center shrink-0 border shadow-xs ${
+        className={`flex flex-col ${
           isUser
-            ? "bg-[var(--btn-bg,#1c1e27)] border-[var(--border-color,#282a36)] text-[var(--text-primary,#e6e9f0)]"
-            : "bg-[var(--accent-color,#818cf8)] border-[var(--accent-color,#818cf8)] text-white font-bold text-[11px]"
+            ? "items-end max-w-[88%] sm:max-w-[80%] md:max-w-[75%]"
+            : "items-start w-full max-w-full"
         }`}
       >
-        {isUser ? <User className="w-4 h-4 text-[var(--text-primary,#e6e9f0)]" /> : <span>AI</span>}
-      </div>
-
-      {/* Message Body Container */}
-      <div className={`flex flex-col ${isUser ? "items-end max-w-[90%] sm:max-w-[85%] md:max-w-[80%]" : "items-start w-full max-w-full"}`}>
-        {/* Header meta */}
-        <div className="flex items-center gap-2 mb-1.5 text-[11.5px] text-[var(--text-muted,#6b7280)] font-medium">
-          <span>{isUser ? (language === "fa" ? "شما" : "You") : (language === "fa" ? "دستیار هوش مصنوعی" : "Assistant")}</span>
-          {message.modelUsed && !isUser && (
-            <span className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary,#191a21)] border border-[var(--border-subtle,#1e2029)] text-[var(--accent-color,#818cf8)] font-mono text-[10.5px]">
-              {message.modelUsed}
-            </span>
-          )}
-          <span>•</span>
-          <span className="font-mono text-[10.5px]">
-            {new Date(message.timestamp).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        </div>
-
         {/* User Attached Files Preview */}
         {message.attachments && message.attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2.5 mb-2.5">
+          <div className="flex flex-wrap gap-2 mb-2">
             {message.attachments.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center gap-2.5 p-2 pr-3 rounded-xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-subtle,#1e2029)] text-xs text-[var(--text-secondary,#9ba3b2)] shadow-xs"
+                className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-subtle,#1e2029)] text-xs text-[var(--text-secondary,#9ba3b2)] shadow-xs"
               >
                 {file.isImage && file.dataUrl ? (
                   <img
                     src={file.dataUrl}
                     alt={file.name}
-                    onClick={() => setPreviewImage(file.dataUrl!)}
-                    className="w-12 h-12 object-cover rounded-lg cursor-pointer border border-[var(--border-subtle,#1e2029)] hover:opacity-80 transition-opacity"
+                    onClick={() => setViewerImageUrl(file.dataUrl!)}
+                    className="w-10 h-10 object-cover rounded-lg cursor-pointer border border-[var(--border-subtle,#1e2029)] hover:opacity-80 transition-opacity"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-lg bg-[var(--bg-surface,#1f212a)] flex items-center justify-center text-[var(--accent-color,#818cf8)]">
-                    <FileText className="w-5 h-5" />
+                  <div className="w-8 h-8 rounded-lg bg-[var(--bg-surface,#1f212a)] flex items-center justify-center text-[var(--accent-color,#818cf8)]">
+                    <FileText className="w-4 h-4" />
                   </div>
                 )}
                 <div className="flex flex-col text-left rtl:text-right">
-                  <span className="font-medium text-[var(--text-primary,#e6e9f0)] truncate max-w-[160px] text-xs">
+                  <span className="font-medium text-[var(--text-primary,#e6e9f0)] truncate max-w-[140px] text-xs">
                     {file.name}
                   </span>
                   <span className="text-[10px] text-[var(--text-muted,#6b7280)] font-mono">
@@ -226,30 +336,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Reasoning / Thinking Process Block (For Assistant) */}
         {!isUser && message.thinkingContent && (
-          <div className="w-full mb-3.5 rounded-2xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-subtle,#1e2029)] overflow-hidden text-xs shadow-xs">
+          <div className="w-full mb-3 rounded-2xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-subtle,#1e2029)] overflow-hidden text-xs shadow-xs">
             <button
               onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-              className="w-full flex items-center justify-between p-3.5 text-[11.5px] uppercase tracking-wider text-[var(--text-muted,#6b7280)] font-bold cursor-pointer hover:bg-[var(--bg-surface,#1f212a)] transition-colors"
+              className="w-full flex items-center justify-between p-3 text-[11.5px] uppercase tracking-wider text-[var(--text-muted,#6b7280)] font-bold cursor-pointer hover:bg-[var(--bg-surface,#1f212a)] transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-[var(--accent-color,#818cf8)] animate-pulse" />
+                <Brain className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)] animate-pulse" />
                 <span>{t("thinkingProcess")}</span>
                 {message.thinkingTimeMs && (
-                  <span className="text-[10.5px] text-[var(--text-muted,#6b7280)] font-mono bg-[var(--bg-primary,#131418)] px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] text-[var(--text-muted,#6b7280)] font-mono bg-[var(--bg-primary,#131418)] px-1.5 py-0.5 rounded">
                     {(message.thinkingTimeMs / 1000).toFixed(1)}s
                   </span>
                 )}
               </div>
               {isThinkingExpanded ? (
-                <ChevronDown className="w-4 h-4 text-[var(--text-muted,#6b7280)]" />
+                <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted,#6b7280)]" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-[var(--text-muted,#6b7280)] rtl:rotate-180" />
+                <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted,#6b7280)] rtl:rotate-180" />
               )}
             </button>
             {isThinkingExpanded && (
               <div
                 dir={isRtlText(message.thinkingContent) ? "rtl" : "ltr"}
-                className="px-4 pb-4 pt-3 text-[13.5px] text-[var(--text-secondary,#9ba3b2)] italic leading-[1.75] border-t border-[var(--border-subtle,#1e2029)]"
+                className="px-3.5 pb-3.5 pt-2 text-[13px] text-[var(--text-secondary,#9ba3b2)] italic leading-relaxed border-t border-[var(--border-subtle,#1e2029)]"
               >
                 {message.thinkingContent}
               </div>
@@ -257,57 +367,185 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        {/* Non-destructive Thinking Warning Banner */}
-        {!isUser && message.thinkingWarning && (
-          <div className="w-full mb-3 p-3 rounded-xl bg-amber-950/40 border border-amber-800/60 text-amber-300 text-xs flex items-center gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="leading-relaxed">{message.thinkingWarning}</span>
-          </div>
-        )}
-
-        {/* Message Content Bubble / Container */}
+        {/* User Message Editing Mode */}
         {isEditing ? (
-          <div className="w-full flex flex-col gap-3 p-4 bg-[var(--bg-surface,#1f212a)] rounded-2xl border border-[var(--border-color,#282a36)] shadow-xl animate-fadeIn transition-all">
+          <div className="w-full flex flex-col gap-2.5 p-3.5 bg-[var(--bg-surface,#1f212a)] rounded-2xl border border-[var(--border-color,#282a36)] shadow-xl animate-fadeIn transition-all">
             <textarea
               ref={textareaRef}
               value={editContent}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
               dir={isRtl ? "rtl" : "ltr"}
-              placeholder="Type your edited message..."
-              className="w-full bg-[var(--bg-primary,#131418)] text-[var(--text-primary,#e6e9f0)] p-3.5 rounded-xl border border-[var(--border-color,#282a36)] text-[15px] focus:outline-none focus:border-[var(--accent-color,#818cf8)] resize-none overflow-y-auto leading-[1.75] max-h-[460px]"
+              placeholder="Edit your message..."
+              className="w-full bg-[var(--bg-primary,#131418)] text-[var(--text-primary,#e6e9f0)] p-3 rounded-xl border border-[var(--border-color,#282a36)] text-[14.5px] focus:outline-none focus:border-[var(--accent-color,#818cf8)] resize-none overflow-y-auto leading-relaxed max-h-[460px]"
             />
             <div className="flex items-center justify-between pt-1">
               <span className="text-[11px] text-[var(--text-muted,#6b7280)] font-mono hidden sm:inline">
                 Ctrl + Enter to save • Esc to cancel
               </span>
-              <div className="flex items-center gap-2.5 ml-auto rtl:ml-0 rtl:mr-auto">
+              <div className="flex items-center gap-2 ml-auto rtl:ml-0 rtl:mr-auto">
                 <button
                   onClick={() => {
                     setIsEditing(false);
                     setEditContent(message.content);
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-bg,#1c1e27)] transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-bg,#1c1e27)] transition-colors cursor-pointer"
                 >
                   {t("cancel")}
                 </button>
                 <button
                   onClick={handleSaveEdit}
-                  className="px-4.5 py-2 rounded-xl text-xs bg-[var(--accent-color,#818cf8)] hover:brightness-110 text-white font-bold shadow-xs transition-all cursor-pointer"
+                  className="px-4 py-1.5 rounded-xl text-xs bg-[var(--accent-color,#818cf8)] hover:brightness-110 text-white font-bold shadow-xs transition-all cursor-pointer"
                 >
                   {t("saveAndResend")}
                 </button>
               </div>
             </div>
           </div>
+        ) : isUser ? (
+          /* User Message Bubble */
+          <div className="bg-[var(--bg-user-msg,#222530)] border border-[var(--border-color,#313547)] px-4.5 py-3 rounded-2xl rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm text-[var(--text-primary,#f3f4f6)] text-[14.5px] sm:text-[15px] leading-relaxed shadow-sm">
+            <div
+              ref={userContentRef}
+              dir={isRtl ? "rtl" : "ltr"}
+              className={`whitespace-pre-wrap break-words transition-all relative ${
+                isLongUserMsg && !isUserExpanded ? "max-h-[260px] overflow-hidden" : "max-h-none"
+              }`}
+            >
+              {message.content}
+              {isLongUserMsg && !isUserExpanded && (
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--bg-user-msg,#222530)] to-transparent pointer-events-none" />
+              )}
+            </div>
+            {isLongUserMsg && (
+              <button
+                type="button"
+                onClick={() => setIsUserExpanded(!isUserExpanded)}
+                className="mt-2 w-full pt-1.5 flex items-center justify-center gap-1.5 text-xs font-semibold text-[var(--accent-color,#818cf8)] hover:brightness-125 transition-colors cursor-pointer border-t border-[var(--border-subtle,#1e2029)]/80"
+              >
+                <span>{isUserExpanded ? t("showLess") : t("showMore")}</span>
+                {isUserExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </div>
+        ) : !isUser && message.imageGeneration ? (
+          /* ==========================================================================
+             IMAGE GENERATION CARD: Clean square with softly animated flowing colors
+             ========================================================================== */
+          <div className="flex flex-col items-start space-y-1.5 animate-fadeIn">
+            {/* Minimal Heading Above Square Aligned with Percentage */}
+            <div className="flex items-center justify-between w-72 sm:w-80 px-1 text-xs font-medium text-[var(--text-secondary,#9ba3b2)]">
+              <span>
+                {message.imageGeneration.status === "completed"
+                  ? language === "fa"
+                    ? "تصویر تولید شده"
+                    : "Generated image"
+                  : message.imageGeneration.status === "failed"
+                  ? language === "fa"
+                    ? "خطا در تولید تصویر"
+                    : "Generation failed"
+                  : language === "fa"
+                  ? "در حال تولید تصویر"
+                  : "Generating image"}
+              </span>
+
+              {/* Progress Percentage only shown when defensible numerical progress exists */}
+              {hasDefensibleProgress && (
+                <span className="font-mono text-xs font-semibold text-pink-400">
+                  {message.imageGeneration.progress}%
+                </span>
+              )}
+            </div>
+
+            {/* Stable Square Container (Same dimensions throughout generation & completion) */}
+            <div className="w-72 h-72 sm:w-80 sm:h-80 aspect-square rounded-2xl overflow-hidden relative shadow-md bg-neutral-950">
+              {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl ? (
+                /* Completed State: Real Generated Image In Same Square */
+                <img
+                  src={message.imageGeneration.imageUrl}
+                  alt="Generated visual output"
+                  className="w-full h-full object-cover cursor-pointer rounded-2xl hover:opacity-95 transition-opacity"
+                  onClick={() => setViewerImageUrl(message.imageGeneration!.imageUrl!)}
+                />
+              ) : (
+                /* Generating State: ONLY softly animated, flowing colors (restrained purple, violet, blue & turquoise) */
+                <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#12072b] via-[#080a14] to-[#041a20]">
+                  {/* Floating violet/purple radial glow */}
+                  <div className="absolute -top-10 -left-10 w-52 h-52 rounded-full bg-purple-600/35 blur-3xl animate-flow-1" />
+                  {/* Floating blue radial glow */}
+                  <div className="absolute -bottom-10 -right-10 w-56 h-56 rounded-full bg-blue-600/35 blur-3xl animate-flow-2" />
+                  {/* Floating turquoise radial glow */}
+                  <div className="absolute top-1/4 left-1/4 w-44 h-44 rounded-full bg-cyan-500/25 blur-3xl animate-flow-3" />
+                  {/* Floating deep violet accent */}
+                  <div className="absolute bottom-1/4 left-1/3 w-36 h-36 rounded-full bg-violet-500/30 blur-2xl animate-flow-4" />
+                </div>
+              )}
+            </div>
+
+            {/* Metadata & Controls Below Square (Small Subdued Text) */}
+            <div className="w-72 sm:w-80 px-1 pt-1 space-y-1 text-[11px] text-[var(--text-muted,#777)] font-mono">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="truncate max-w-[210px] text-[var(--text-secondary,#aaa)] font-medium" title={message.imageGeneration.modelUsed}>
+                  {message.imageGeneration.modelUsed || "ComfyUI Checkpoint"}
+                </span>
+                <span className="text-neutral-500 shrink-0">512 × 512</span>
+              </div>
+
+              {message.imageGeneration.enhancedPrompt && (
+                <p className="text-[11px] text-[var(--text-muted,#888)] italic line-clamp-2 leading-relaxed">
+                  {message.imageGeneration.enhancedPrompt}
+                </p>
+              )}
+
+              {/* Action Buttons for Completed State */}
+              {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl && (
+                <div className="flex items-center gap-2 pt-1 font-sans">
+                  <button
+                    onClick={() =>
+                      handleDownloadImage(
+                        message.imageGeneration!.imageUrl!,
+                        `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${Date.now()}.png`
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] text-[var(--text-primary,#eee)] text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
+                  {onRetryImage && (
+                    <button
+                      onClick={() => onRetryImage(message.id)}
+                      className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] text-[var(--text-primary,#eee)] text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>Retry</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Honest Failure Notice & Retry */}
+              {message.imageGeneration.status === "failed" && (
+                <div className="pt-1 text-red-400 space-y-1 font-sans">
+                  <p className="text-[11.5px] leading-relaxed">
+                    {message.imageGeneration.error || "Generation failed. Verify ComfyUI connection and selected checkpoint."}
+                  </p>
+                  {onRetryImage && (
+                    <button
+                      onClick={() => onRetryImage(message.id)}
+                      className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-200 text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                      <span>Retry generation</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
-          <div
-            className={`transition-all ${
-              isUser
-                ? "bg-[var(--bg-user-msg,#222530)] border border-[var(--border-color,#313547)] px-5 py-3.5 rounded-2xl rounded-tr-none rtl:rounded-tr-2xl rtl:rounded-tl-none text-[var(--text-primary,#f3f4f6)] text-[15px] sm:text-[15.5px] leading-[1.75] shadow-sm max-w-full"
-                : "w-full text-[var(--text-primary,#f3f4f6)] text-[15px] sm:text-[15.5px] leading-[1.75] space-y-3"
-            }`}
-          >
+          /* Regular Assistant Text Response */
+          <div className="w-full text-[var(--text-primary,#f3f4f6)] text-[14.5px] sm:text-[15px] leading-relaxed space-y-3">
             {message.isError ? (
               <div className="text-[var(--color-error,#f87171)] flex flex-col gap-1.5 p-3 rounded-xl bg-red-950/40 border border-red-800/60">
                 <span className="font-semibold text-xs uppercase tracking-wider">
@@ -317,528 +555,65 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   {message.errorMessage || message.content}
                 </span>
               </div>
-            ) : isUser ? (
-              <div className="w-full">
-                <div
-                  ref={userContentRef}
-                  dir={isRtl ? "rtl" : "ltr"}
-                  className={`whitespace-pre-wrap break-words text-[15px] sm:text-[15.5px] leading-[1.75] transition-all relative ${
-                    isLongUserMsg && !isUserExpanded
-                      ? "max-h-[260px] overflow-hidden"
-                      : "max-h-none"
-                  }`}
-                >
-                  {message.content}
-                  {isLongUserMsg && !isUserExpanded && (
-                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--bg-user-msg,#222530)] to-transparent pointer-events-none" />
-                  )}
-                </div>
-
-                {isLongUserMsg && (
-                  <button
-                    type="button"
-                    onClick={() => setIsUserExpanded(!isUserExpanded)}
-                    className="mt-2.5 w-full pt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-[var(--accent-color,#818cf8)] hover:brightness-125 transition-colors cursor-pointer border-t border-[var(--border-subtle,#1e2029)]/80"
-                  >
-                    <span>{isUserExpanded ? t("showLess") : t("showMore")}</span>
-                    {isUserExpanded ? (
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    ) : (
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                )}
-              </div>
-            ) : !isUser && message.imageGeneration ? (
-              <div className="w-full space-y-3">
-                {/* Context-Aware Image Generation Display */}
-                <div className="w-full rounded-2xl overflow-hidden border border-[var(--border-subtle,#20222c)] bg-[var(--bg-secondary,#16171d)] shadow-md transition-all">
-                  {/* Prompting or Queued State */}
-                  {(message.imageGeneration.status === "prompting" || message.imageGeneration.status === "queued") && (
-                    <div className="p-4 flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-pink-400">
-                          <Sparkles className="w-4 h-4 animate-spin" />
-                          <span>
-                            {message.imageGeneration.status === "prompting"
-                              ? t("synthesizingPrompt")
-                              : t("queuedInComfy")}
-                          </span>
-                        </div>
-                        {onStopImage && (
-                          <button
-                            onClick={() => onStopImage(message.id)}
-                            className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            <X className="w-3 h-3" />
-                            <span>{t("stop")}</span>
-                          </button>
-                        )}
-                      </div>
-                      {message.imageGeneration.enhancedPrompt && (
-                        <p className="text-xs text-[var(--text-secondary,#9ba3b2)] italic bg-[var(--bg-primary,#101115)] p-2.5 rounded-xl border border-[var(--border-subtle,#1e2029)]">
-                          "{message.imageGeneration.enhancedPrompt}"
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Processing State */}
-                  {message.imageGeneration.status === "processing" && (
-                    <div className="p-4 flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-primary,#eee)]">
-                          <Loader2 className="w-4 h-4 animate-spin text-pink-400" />
-                          <span>{t("generatingImageStep")}</span>
-                          <span className="font-mono text-pink-300">
-                            ({message.imageGeneration.step || 0}/{message.imageGeneration.totalSteps || 20})
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold text-pink-400">
-                            {message.imageGeneration.progress || 0}%
-                          </span>
-                          {onStopImage && (
-                            <button
-                              onClick={() => onStopImage(message.id)}
-                              className="px-2 py-0.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                              <span>{t("stop")}</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="w-full bg-[var(--bg-primary,#101115)] rounded-full h-2 overflow-hidden border border-[var(--border-subtle,#20222c)]">
-                        <div
-                          className="bg-gradient-to-r from-pink-500 to-indigo-500 h-2 rounded-full transition-all duration-300 ease-out"
-                          style={{ width: `${message.imageGeneration.progress || 0}%` }}
-                        />
-                      </div>
-                      {message.imageGeneration.enhancedPrompt && (
-                        <p className="text-[11px] text-[var(--text-muted,#777)] italic truncate">
-                          {message.imageGeneration.enhancedPrompt}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Completed State */}
-                  {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl && (
-                    <div className="flex flex-col">
-                      <div className="relative group overflow-hidden bg-black/40 flex items-center justify-center max-h-[500px]">
-                        <img
-                          src={message.imageGeneration.imageUrl}
-                          alt="Generated visual output"
-                          className="w-full h-auto max-h-[500px] object-contain cursor-pointer transition-transform duration-200 group-hover:scale-[1.01]"
-                          onClick={() => setPreviewImage(message.imageGeneration!.imageUrl!)}
-                        />
-                        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/75 backdrop-blur-md p-1.5 rounded-xl border border-white/10">
-                          <button
-                            onClick={() => setPreviewImage(message.imageGeneration!.imageUrl!)}
-                            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            title={t("viewFullSize")}
-                          >
-                            <Maximize2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDownloadImage(message.imageGeneration!.imageUrl!, `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${message.imageGeneration?.completedAt || Date.now()}.png`)}
-                            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                            title={t("downloadImage")}
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                          {onRetryImage && (
-                            <button
-                              onClick={() => onRetryImage(message.id)}
-                              className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                              title={t("retryGeneration")}
-                            >
-                              <RotateCw className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-[var(--bg-surface,#1b1d25)] border-t border-[var(--border-subtle,#20222c)] flex flex-col gap-1.5 text-xs text-[var(--text-secondary,#9ba3b2)]">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 truncate">
-                            <span className="px-2 py-0.5 rounded-md bg-pink-950/60 border border-pink-800/40 text-pink-300 text-[10px] font-mono">
-                              {message.imageGeneration.modelUsed || "ComfyUI"}
-                            </span>
-                            {message.imageGeneration.enhancedPrompt && (
-                              <button
-                                onClick={() => setShowPromptDetails(!showPromptDetails)}
-                                className="text-[11px] hover:text-[var(--text-primary,#eee)] transition-colors flex items-center gap-1 cursor-pointer"
-                              >
-                                <Sparkles className="w-3 h-3 text-pink-400" />
-                                <span>{showPromptDetails ? "Hide Prompt" : "Show Prompt"}</span>
-                                <ChevronDown className={`w-3 h-3 transition-transform ${showPromptDetails ? "rotate-180" : ""}`} />
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleDownloadImage(message.imageGeneration!.imageUrl!, `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${message.imageGeneration?.completedAt || Date.now()}.png`)}
-                              className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#232530)] hover:bg-[var(--btn-hover,#2a2c3a)] text-[var(--text-primary,#eee)] text-[11px] font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>{t("downloadImage")}</span>
-                            </button>
-                            {onRetryImage && (
-                              <button
-                                onClick={() => onRetryImage(message.id)}
-                                className="p-1.5 rounded-lg bg-[var(--btn-bg,#232530)] hover:bg-[var(--btn-hover,#2a2c3a)] text-[var(--text-primary,#eee)] transition-colors cursor-pointer"
-                                title={t("retryGeneration")}
-                              >
-                                <RotateCw className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {showPromptDetails && message.imageGeneration.enhancedPrompt && (
-                          <p className="mt-2 p-2.5 rounded-xl bg-[var(--bg-primary,#101115)] border border-[var(--border-subtle,#1e2029)] text-[11.5px] leading-relaxed text-[var(--text-primary,#e4e4e7)]">
-                            {message.imageGeneration.enhancedPrompt}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Failed State */}
-                  {message.imageGeneration.status === "failed" && (
-                    <div className="p-4 flex flex-col gap-2.5 bg-red-950/30 border border-red-800/50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-red-300 text-xs font-semibold">
-                          <AlertTriangle className="w-4 h-4 text-red-400" />
-                          <span>Image generation failed</span>
-                        </div>
-                        {onRetryImage && (
-                          <button
-                            onClick={() => onRetryImage(message.id)}
-                            className="px-2.5 py-1 rounded-lg bg-red-900/60 hover:bg-red-800/80 text-red-100 text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                          >
-                            <RotateCw className="w-3 h-3" />
-                            <span>{t("retry")}</span>
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs text-red-300/80 leading-relaxed">
-                        {message.imageGeneration.error || "Failed to generate image. Please check ComfyUI status and selected checkpoint."}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Interrupted State */}
-                  {message.imageGeneration.status === "interrupted" && (
-                    <div className="p-3.5 flex items-center justify-between bg-amber-950/30 border border-amber-800/50 text-amber-200 text-xs">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-400" />
-                        <span>Generation was stopped by user.</span>
-                      </div>
-                      {onRetryImage && (
-                        <button
-                          onClick={() => onRetryImage(message.id)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-900/60 hover:bg-amber-800/80 text-amber-100 text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <RotateCw className="w-3 h-3" />
-                          <span>{t("retry")}</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Additional Assistant Text if present */}
-                {message.content && (
-                  <div
-                    dir={isRtl ? "rtl" : "ltr"}
-                    className="markdown-body max-w-none text-[var(--text-primary,#f3f4f6)] text-[15px] sm:text-[15.5px] leading-[1.75] space-y-3.5 break-words"
-                  >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-([\w+#.-]+)/.exec(className || "");
-                          const codeString = String(children).replace(/\n$/, "");
-                          const isMultiLine = String(children).includes("\n");
-                          const isBlock = match || isMultiLine || (!inline && className?.includes("language-"));
-
-                          if (isBlock) {
-                            return (
-                              <CodeBlock
-                                language={match ? match[1] : ""}
-                                value={codeString}
-                              />
-                            );
-                          }
-                          return (
-                            <code
-                              dir="ltr"
-                              className="px-1.5 py-0.5 rounded-md bg-[var(--code-inline-bg)] text-[var(--code-inline-text)] font-mono text-[13px] border border-[var(--border-subtle)] font-medium inline-block my-0.5 align-baseline"
-                              {...props}
-                            >
-                              {children}
-                            </code>
-                          );
-                        },
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
-                  </div>
-                )}
-              </div>
-            ) : !message.content && !message.thinkingContent && (message.isStreaming || isStreaming) ? (
-              <div className="py-2 animate-fadeIn">
-                <AIStatusIndicator
-                  activityState={message.activityState || activeActivityState || "generating"}
-                  language={language}
-                  variant="bubble"
-                />
-              </div>
             ) : (
               <div
                 dir={isRtl ? "rtl" : "ltr"}
-                className="markdown-body max-w-none text-[var(--text-primary,#f3f4f6)] text-[15px] sm:text-[15.5px] leading-[1.75] space-y-3.5 break-words"
+                className="markdown-body prose dark:prose-invert max-w-none break-words leading-relaxed"
               >
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeKatex]}
                   components={{
-                    code({ node, inline, className, children, ...props }: any) {
-                      const match = /language-([\w+#.-]+)/.exec(className || "");
-                      const codeString = String(children).replace(/\n$/, "");
-                      const isMultiLine = String(children).includes("\n");
-                      const isBlock = match || isMultiLine || (!inline && className?.includes("language-"));
+                    code({ className, children, ...props }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      const isInline = !match && !String(children).includes("\n");
 
-                      if (isBlock) {
+                      if (isInline) {
                         return (
-                          <CodeBlock
-                            language={match ? match[1] : ""}
-                            value={codeString}
-                          />
+                          <code
+                            className="bg-[var(--bg-secondary,#1c1e27)] text-[var(--accent-color,#818cf8)] font-mono text-[13px] px-1.5 py-0.5 rounded-md border border-[var(--border-subtle,#262834)]"
+                            {...props}
+                          >
+                            {children}
+                          </code>
                         );
                       }
+
                       return (
-                        <code
-                          dir="ltr"
-                          className="px-1.5 py-0.5 rounded-md bg-[var(--code-inline-bg)] text-[var(--code-inline-text)] font-mono text-[13px] border border-[var(--border-subtle)] font-medium inline-block my-0.5 align-baseline"
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      );
-                    },
-                    h1({ children }) {
-                      return (
-                        <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary,#f4f4f5)] border-b border-[var(--border-color,#27272a)] pb-2 mt-6 mb-3.5">
-                          {children}
-                        </h1>
-                      );
-                    },
-                    h2({ children }) {
-                      return (
-                        <h2 className="text-lg sm:text-xl font-bold text-[var(--text-primary,#f4f4f5)] mt-5 mb-3">
-                          {children}
-                        </h2>
-                      );
-                    },
-                    h3({ children }) {
-                      return (
-                        <h3 className="text-base sm:text-lg font-semibold text-[var(--text-primary,#e4e4e7)] mt-4 mb-2">
-                          {children}
-                        </h3>
-                      );
-                    },
-                    p({ children }) {
-                      return (
-                        <p className="leading-[1.75] text-[var(--text-primary,#e4e4e7)] text-[15px] sm:text-[15.5px] mb-3">
-                          {children}
-                        </p>
-                      );
-                    },
-                    ul({ children }) {
-                      return (
-                        <ul className="list-disc list-outside pl-6 rtl:pr-6 rtl:pl-0 space-y-1.5 my-3 text-[var(--text-primary,#e4e4e7)] text-[15px] sm:text-[15.5px] leading-[1.75]">
-                          {children}
-                        </ul>
-                      );
-                    },
-                    ol({ children }) {
-                      return (
-                        <ol className="list-decimal list-outside pl-6 rtl:pr-6 rtl:pl-0 space-y-1.5 my-3 text-[var(--text-primary,#e4e4e7)] text-[15px] sm:text-[15.5px] leading-[1.75]">
-                          {children}
-                        </ol>
-                      );
-                    },
-                    blockquote({ children }) {
-                      return (
-                        <blockquote className="border-l-4 rtl:border-r-4 rtl:border-l-0 border-[var(--accent-color,#818cf8)] pl-4 rtl:pr-4 rtl:pl-0 py-1.5 my-3.5 text-[var(--text-secondary,#a1a1aa)] italic bg-[var(--bg-surface,#18181b)] rounded-r-xl rtl:rounded-l-xl rtl:rounded-r-none text-[14.5px] leading-[1.75]">
-                          {children}
-                        </blockquote>
-                      );
-                    },
-                    table({ children }) {
-                      return (
-                        <div dir="ltr" className="overflow-x-auto my-4 rounded-xl border border-[var(--border-color,#27272a)] bg-[var(--code-bg,#09090b)] custom-scrollbar">
-                          <table className="min-w-full divide-y divide-[var(--border-color,#27272a)] text-xs font-mono">
-                            {children}
-                          </table>
-                        </div>
-                      );
-                    },
-                    th({ children }) {
-                      return (
-                        <th className="px-4 py-3 bg-[var(--code-header-bg,#18181b)] text-left font-semibold text-[var(--text-primary,#f4f4f5)] uppercase text-[11px] tracking-wider">
-                          {children}
-                        </th>
-                      );
-                    },
-                    td({ children }) {
-                      return (
-                        <td className="px-4 py-2.5 border-t border-[var(--border-color,#27272a)] text-[var(--text-primary,#d4d4d8)] text-xs">
-                          {children}
-                        </td>
-                      );
-                    },
-                    hr() {
-                      return <hr className="border-[var(--border-color,#27272a)] my-5" />;
-                    },
-                    a({ href, children }) {
-                      return (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[var(--link-color,#818cf8)] hover:underline font-medium"
-                        >
-                          {children}
-                        </a>
+                        <CodeBlock
+                          language={match ? match[1] : "text"}
+                          value={String(children).replace(/\n$/, "")}
+                        />
                       );
                     },
                   }}
                 >
                   {message.content}
                 </ReactMarkdown>
-
-                {/* Subtle dynamic indicator while streaming content */}
-                {(message.isStreaming || isStreaming) && (
-                  <div className="pt-2">
-                    <AIStatusIndicator
-                      activityState={message.activityState || activeActivityState || "generating"}
-                      language={language}
-                      variant="inline"
-                    />
-                  </div>
-                )}
               </div>
             )}
           </div>
         )}
 
-        {/* Interrupted Generation Notice & Continue / Finish Controls */}
-        {!isUser && message.isInterrupted && !isStreaming && (
-          <div className="w-full mt-3 p-3.5 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              <span>{t("generationStopped")}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {onContinue && (
-                <button
-                  onClick={() => onContinue(message.id)}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>{t("continueResponse")}</span>
-                </button>
-              )}
-
-              {onFinish && (
-                <button
-                  onClick={() => onFinish(message.id)}
-                  className="px-3.5 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <CheckCircle className="w-3.5 h-3.5 text-[var(--text-muted,#6b7280)]" />
-                  <span>{t("finishResponse")}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Lightweight Generation Stats Footer */}
-        {!isUser && message.generationStats && !message.isStreaming && (
-          <div className="mt-2 text-[11px] text-[var(--text-muted,#6b7280)] font-mono">
-            <button
-              onClick={() => setShowStatsDetails(!showStatsDetails)}
-              className="flex items-center gap-2 hover:text-[var(--text-primary,#e6e9f0)] transition-colors cursor-pointer"
-            >
-              <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>
-                {message.generationStats.tokensPerSec
-                  ? `${message.generationStats.tokensPerSec} ${t("tokSec")}`
-                  : `${message.generationStats.answerTokens || 0} ${t("tokens")}`}
-              </span>
-              <span>•</span>
-              <span>
-                {message.generationStats.totalDurationMs
-                  ? `${(message.generationStats.totalDurationMs / 1000).toFixed(1)}s`
-                  : "Complete"}
-              </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform ${showStatsDetails ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {showStatsDetails && (
-              <div className="mt-2 p-3 rounded-xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-subtle,#1e2029)] grid grid-cols-2 sm:grid-cols-4 gap-3 text-[var(--text-secondary,#9ba3b2)] text-[11px] animate-fadeIn shadow-xs">
-                <div>
-                  <span className="text-[var(--text-muted,#6b7280)] block">{t("speed")}:</span>
-                  <span className="text-[var(--text-primary,#e6e9f0)] font-bold">{message.generationStats.tokensPerSec || 0} t/s</span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted,#6b7280)] block">{t("answerTokens")}:</span>
-                  <span className="text-[var(--text-primary,#e6e9f0)] font-bold">{message.generationStats.answerTokens || 0}</span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted,#6b7280)] block">{t("thinkingTokens")}:</span>
-                  <span className="text-[var(--text-primary,#e6e9f0)] font-bold">{message.generationStats.thinkingTokens || 0}</span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted,#6b7280)] block">{t("promptTokens")}:</span>
-                  <span className="text-[var(--text-primary,#e6e9f0)] font-bold">{message.generationStats.promptEvalCount || 0}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Message Actions Bar */}
+        {/* Message Actions Bar on Hover (Preserving all actions) */}
         {!isEditing && (
           <div
-            className={`flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity ${
+            className={`flex items-center gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity ${
               isUser ? "justify-end" : "justify-start"
             }`}
           >
             <button
               onClick={handleCopyMessage}
-              className="p-1.5 rounded-lg hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+              className="p-1.5 rounded-lg hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1 text-xs cursor-pointer"
               title={t("copyMessage")}
             >
               {copiedText ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400 font-medium text-[11px]">{t("copied")}</span>
+                  <span className="text-emerald-400 text-[11px] font-medium">{t("copied")}</span>
                 </>
               ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span className="text-[11px]">{t("copyText")}</span>
-                </>
+                <Copy className="w-3.5 h-3.5" />
               )}
             </button>
 
@@ -855,7 +630,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {!isUser && onRetry && isLastAssistantMessage && !isStreaming && (
               <button
                 onClick={() => onRetry(message.id)}
-                className="p-1.5 rounded-lg hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-emerald-400 transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-emerald-400 transition-colors flex items-center gap-1 text-xs cursor-pointer"
                 title={t("regenerateResponse")}
               >
                 <RotateCw className="w-3.5 h-3.5" />
@@ -876,38 +651,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
       </div>
 
-      {/* Image Modal Preview */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-900 p-2 shadow-2xl">
-            <div className="absolute top-3 right-3 rtl:right-auto rtl:left-3 flex items-center gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDownloadImage(previewImage, `image-${Date.now()}.png`);
-                }}
-                className="p-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 cursor-pointer shadow-md"
-                title={t("downloadImage")}
-              >
-                <Download className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-1.5 rounded-full bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 cursor-pointer shadow-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <img
-              src={previewImage}
-              alt="Preview"
-              className="max-w-full max-h-[85vh] object-contain rounded-xl"
-            />
-          </div>
-        </div>
+      {/* Dedicated Larger Image Viewer Modal */}
+      {viewerImageUrl && (
+        <ImageViewerModal
+          imageUrl={viewerImageUrl}
+          title={message.imageGeneration?.modelUsed || "Generated Visual Output"}
+          onClose={() => setViewerImageUrl(null)}
+          onDownload={() =>
+            handleDownloadImage(viewerImageUrl, `image-${Date.now()}.png`)
+          }
+        />
       )}
     </div>
   );

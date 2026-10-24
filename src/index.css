@@ -440,3 +440,44 @@ html.light {
 .hljs-code {
   color: var(--syntax-string, var(--default-syntax-string));
 }
+
+/* ==========================================================================
+   SOFT FLOWING GRADIENTS (Restrained Purple, Violet, Blue & Turquoise)
+   ========================================================================== */
+@keyframes flow-1 {
+  0% { transform: translate(-10%, -10%) scale(1); }
+  50% { transform: translate(25%, 20%) scale(1.15); }
+  100% { transform: translate(5%, -15%) scale(0.95); }
+}
+
+@keyframes flow-2 {
+  0% { transform: translate(15%, 15%) scale(1.1); }
+  50% { transform: translate(-20%, -10%) scale(0.9); }
+  100% { transform: translate(10%, 25%) scale(1.05); }
+}
+
+@keyframes flow-3 {
+  0% { transform: translate(-15%, 20%) scale(0.95); }
+  50% { transform: translate(10%, -25%) scale(1.12); }
+  100% { transform: translate(-5%, 10%) scale(1); }
+}
+
+@keyframes flow-4 {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.25) rotate(180deg); }
+  100% { transform: scale(1) rotate(360deg); }
+}
+
+.animate-flow-1 {
+  animation: flow-1 12s ease-in-out infinite alternate;
+}
+.animate-flow-2 {
+  animation: flow-2 15s ease-in-out infinite alternate;
+}
+.animate-flow-3 {
+  animation: flow-3 18s ease-in-out infinite alternate;
+}
+.animate-flow-4 {
+  animation: flow-4 24s linear infinite;
+}
+

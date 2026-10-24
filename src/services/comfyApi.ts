@@ -291,20 +291,52 @@ class ComfyApiService {
    */
   async trackPrompt(params: {
     promptId: string;
+    clientId?: string;
     totalSteps?: number;
     endpoint?: string;
-    onProgress?: (progress: { step: number; totalSteps: number; percent: number }) => void;
+    onProgress?: (progress: { step: number; totalSteps: number; percent?: number }) => void;
     signal?: AbortSignal;
   }): Promise<{ imageUrl: string; filename: string }> {
-    const { promptId, totalSteps = 20, endpoint, onProgress, signal } = params;
+    const { promptId, clientId, totalSteps = 20, endpoint, onProgress, signal } = params;
 
-    let currentStep = 0;
+    let ws: any = null;
+    const cleanEndpoint = (endpoint || "http://127.0.0.1:8188").replace(/\/$/, "");
+
+    // Attempt WebSocket connection for accurate real-time progress events from ComfyUI
+    if (typeof WebSocket !== "undefined") {
+      try {
+        const wsUrl = cleanEndpoint.replace(/^http/, "ws") + `/ws?clientId=${clientId || promptId}`;
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = (event: any) => {
+          try {
+            if (typeof event.data === "string") {
+              const msg = JSON.parse(event.data);
+              if (msg.type === "progress" && msg.data) {
+                const { value, max, prompt_id } = msg.data;
+                if (!prompt_id || prompt_id === promptId) {
+                  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : undefined;
+                  onProgress?.({ step: value, totalSteps: max || totalSteps, percent });
+                }
+              }
+            }
+          } catch {
+            // Ignore binary preview buffers
+          }
+        };
+      } catch (wsErr) {
+        console.debug("ComfyUI WebSocket connection optional fallback:", wsErr);
+      }
+    }
+
     const maxPollAttempts = 300; // up to 4-5 minutes
     let attempt = 0;
 
     try {
       while (attempt < maxPollAttempts) {
         if (signal?.aborted) {
+          if (ws) {
+            try { ws.close(); } catch {}
+          }
           await this.interrupt(endpoint);
           throw new DOMException("Generation aborted by user", "AbortError");
         }
@@ -367,6 +399,9 @@ class ComfyApiService {
                     console.warn("Failed to persist image to backend disk, falling back to direct URL:", e);
                   }
 
+                  if (ws) {
+                    try { ws.close(); } catch {}
+                  }
                   this.isGenerating = false;
                   return { imageUrl: persistentUrl, filename: img.filename };
                 }
@@ -374,23 +409,25 @@ class ComfyApiService {
             }
 
             if (item.status && item.status.completed) {
+              if (ws) {
+                try { ws.close(); } catch {}
+              }
               this.isGenerating = false;
               throw new Error("ComfyUI generation completed but no output image was produced.");
             }
           }
         }
-
-        // Simulate step progression for responsive feedback
-        if (currentStep < totalSteps) {
-          currentStep = Math.min(totalSteps - 1, currentStep + 1);
-          const percent = Math.round((currentStep / totalSteps) * 100);
-          onProgress?.({ step: currentStep, totalSteps, percent });
-        }
       }
 
+      if (ws) {
+        try { ws.close(); } catch {}
+      }
       this.isGenerating = false;
       throw new Error("ComfyUI generation timed out.");
     } catch (err) {
+      if (ws) {
+        try { ws.close(); } catch {}
+      }
       this.isGenerating = false;
       throw err;
     }
