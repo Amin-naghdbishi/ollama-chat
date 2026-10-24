@@ -1318,7 +1318,7 @@ export default function App() {
                           originalRequest: userPrompt,
                           enhancedPrompt,
                           modelUsed: currentImageModel || undefined,
-                          progress: 0,
+                          progress: undefined,
                           step: 0,
                           totalSteps: 20,
                           createdAt: Date.now(),
@@ -1483,6 +1483,270 @@ export default function App() {
     setIsGenerating(false);
   };
 
+  /**
+   * Direct Image Generation Workflow:
+   * Bypasses Ollama and any text LLM completely in application logic.
+   * Directly sends the exact user input prompt to ComfyUI.
+   */
+  const executeDirectImageGeneration = async (promptText: string) => {
+    if (!promptText.trim()) return;
+
+    let currentConvId = activeConversationId;
+    if (!currentConvId) {
+      const newConv: Conversation = {
+        id: `conv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        title: promptText.slice(0, 36).trim() || "Image Generation",
+        modelId: selectedModel || "ollama",
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      currentConvId = newConv.id;
+      setConversations((prev) => [newConv, ...prev]);
+      setActiveConversationId(newConv.id);
+    }
+
+    const userMsgId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const assistantMsgId = `assistant_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    let currentImageModel = selectedImageModel || (imageModels.length > 0 ? imageModels[0] : null);
+    if (!currentImageModel && imageModels.length > 0) {
+      currentImageModel = imageModels[0];
+      setSelectedImageModel(currentImageModel);
+      Storage.saveSelectedImageModel(currentImageModel);
+    }
+
+    const userMessage: ChatMessage = {
+      id: userMsgId,
+      role: "user",
+      content: promptText,
+      timestamp: Date.now(),
+    };
+
+    const assistantMessage: ChatMessage = {
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      timestamp: Date.now(),
+      imageGeneration: {
+        status: "prompting",
+        originalRequest: promptText,
+        enhancedPrompt: promptText, // Exact raw prompt without LLM modification
+        modelUsed: currentImageModel || undefined,
+        createdAt: Date.now(),
+      },
+    };
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === currentConvId
+          ? {
+              ...c,
+              updatedAt: Date.now(),
+              messages: [...c.messages, userMessage, assistantMessage],
+            }
+          : c
+      )
+    );
+
+    setIsGenerating(true);
+    setGlobalError(null);
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    if (!currentImageModel) {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === currentConvId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          status: "failed",
+                          originalRequest: promptText,
+                          enhancedPrompt: promptText,
+                          error: "No ComfyUI checkpoint selected. Please ensure ComfyUI is running with checkpoints and select a checkpoint.",
+                          createdAt: Date.now(),
+                          completedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      // NOTE: Direct Generation completely BYPASSES Ollama/LLM in application logic.
+      // Submit exact promptText directly to ComfyUI workflow:
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === currentConvId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          ...m.imageGeneration!,
+                          status: "queued",
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+
+      const promptRes = await ComfyApi.queuePrompt({
+        checkpoint: currentImageModel,
+        prompt: promptText, // Raw exact prompt
+        endpoint: settings.comfyUiEndpoint,
+      });
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === currentConvId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          ...m.imageGeneration!,
+                          status: "processing",
+                          promptId: promptRes.prompt_id,
+                          step: 0,
+                          totalSteps: 20,
+                          progress: undefined,
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+
+      // Track progress
+      const result = await ComfyApi.trackPrompt({
+        promptId: promptRes.prompt_id,
+        endpoint: settings.comfyUiEndpoint,
+        signal: abortController.signal,
+        onProgress: ({ step, totalSteps, percent }) => {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === currentConvId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMsgId
+                        ? {
+                            ...m,
+                            imageGeneration: {
+                              ...m.imageGeneration!,
+                              status: "processing",
+                              step,
+                              totalSteps,
+                              progress: percent,
+                            },
+                          }
+                        : m
+                    ),
+                  }
+                : c
+            )
+          );
+        },
+      });
+
+      // Completed
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === currentConvId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMsgId
+                    ? {
+                        ...m,
+                        imageGeneration: {
+                          ...m.imageGeneration!,
+                          status: "completed",
+                          imageUrl: result.imageUrl,
+                          completedAt: Date.now(),
+                        },
+                      }
+                    : m
+                ),
+              }
+            : c
+        )
+      );
+    } catch (err: any) {
+      if (err.name === "AbortError" || abortController.signal.aborted) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === currentConvId
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMsgId
+                      ? {
+                          ...m,
+                          imageGeneration: {
+                            ...m.imageGeneration!,
+                            status: "interrupted",
+                            completedAt: Date.now(),
+                          },
+                        }
+                      : m
+                  ),
+                }
+              : c
+          )
+        );
+      } else {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === currentConvId
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMsgId
+                      ? {
+                          ...m,
+                          imageGeneration: {
+                            ...m.imageGeneration!,
+                            status: "failed",
+                            error: err.message || "Direct image generation failed.",
+                            completedAt: Date.now(),
+                          },
+                        }
+                      : m
+                  ),
+                }
+              : c
+          )
+        );
+      }
+    } finally {
+      setIsGenerating(false);
+      abortControllerRef.current = null;
+    }
+  };
+
   // Clear All Data
   const handleClearAllData = () => {
     localStorage.clear();
@@ -1606,6 +1870,7 @@ export default function App() {
                 {/* Chat Input Composer at bottom */}
                 <ChatComposer
                   onSendMessage={handleSendMessage}
+                  onDirectImageGeneration={executeDirectImageGeneration}
                   onStopGeneration={handleStopGeneration}
                   isGenerating={isGenerating}
                   selectedModel={selectedModel}
@@ -1649,6 +1914,7 @@ export default function App() {
                   <div className="w-full mt-6 sm:mt-8">
                     <ChatComposer
                       onSendMessage={handleSendMessage}
+                      onDirectImageGeneration={executeDirectImageGeneration}
                       onStopGeneration={handleStopGeneration}
                       isGenerating={isGenerating}
                       selectedModel={selectedModel}

@@ -11,6 +11,7 @@ import {
   MessageSquare,
   BookOpen,
   Sparkles,
+  Image as ImageIcon,
 } from "lucide-react";
 import { FileAttachment, ContextToolType } from "../types";
 import { isVisionModel } from "../services/ollamaApi";
@@ -19,6 +20,7 @@ import { Language, getTranslation, isRtlText } from "../lib/i18n";
 
 interface ChatComposerProps {
   onSendMessage: (content: string, attachments: FileAttachment[]) => void;
+  onDirectImageGeneration?: (prompt: string) => void;
   onStopGeneration: () => void;
   isGenerating: boolean;
   selectedModel: string | null;
@@ -36,6 +38,7 @@ interface ChatComposerProps {
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSendMessage,
+  onDirectImageGeneration,
   onStopGeneration,
   isGenerating,
   selectedModel,
@@ -52,6 +55,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [isCompressing, setIsCompressing] = useState(false);
   const [isMultiline, setIsMultiline] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [isDirectImageMode, setIsDirectImageMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
@@ -186,6 +190,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const handleSend = () => {
     if ((!input.trim() && attachments.length === 0) || isGenerating || isCompressing) return;
 
+    if (isDirectImageMode) {
+      if (input.trim() && onDirectImageGeneration) {
+        onDirectImageGeneration(input.trim());
+      }
+      setInput("");
+      setAttachments([]);
+      setIsMultiline(false);
+      setIsDirectImageMode(false);
+      if (onDraftChange) onDraftChange("");
+      if (textareaRef.current) textareaRef.current.style.height = "26px";
+      return;
+    }
+
     onSendMessage(input.trim(), attachments);
     setInput("");
     setAttachments([]);
@@ -304,7 +321,38 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             </div>
           </button>
 
-          {/* 2. Search Memories */}
+          {/* 2. Direct Image Generation */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsPlusMenuOpen(false);
+              if (input.trim().length > 0 && onDirectImageGeneration) {
+                onDirectImageGeneration(input.trim());
+                setInput("");
+                setAttachments([]);
+                setIsMultiline(false);
+                setIsDirectImageMode(false);
+                onDraftChange?.("");
+                if (textareaRef.current) textareaRef.current.style.height = "26px";
+              } else {
+                setIsDirectImageMode(true);
+                setTimeout(() => textareaRef.current?.focus(), 50);
+              }
+            }}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
+          >
+            <div className="w-6 h-6 rounded-md bg-pink-950/60 border border-pink-800/50 flex items-center justify-center text-pink-400 shrink-0">
+              <ImageIcon className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-medium text-xs leading-tight text-pink-300 font-semibold">{t("imageGeneration")}</span>
+              <span className="text-[10px] text-pink-400/80 truncate">
+                {language === "fa" ? "ارسال پرامپت مستقیم به ComfyUI" : "Direct image generation via ComfyUI"}
+              </span>
+            </div>
+          </button>
+
+          {/* 3. Search Memories */}
           <button
             type="button"
             onClick={() => {
@@ -480,6 +528,22 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         )}
 
+        {/* Direct Image Mode Active Indicator */}
+        {isDirectImageMode && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 mb-2 rounded-xl bg-pink-950/70 border border-pink-700/60 text-pink-300 text-xs font-mono shadow-xs w-fit animate-fadeIn">
+            <ImageIcon className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+            <span>{language === "fa" ? "حالت تولید مستقیم تصویر (بدون مدل متنی)" : "Direct Image Mode (bypasses LLM)"}</span>
+            <button
+              type="button"
+              onClick={() => setIsDirectImageMode(false)}
+              className="p-0.5 hover:text-white rounded transition-colors cursor-pointer ml-1 text-pink-400 hover:text-pink-200"
+              title="Cancel direct image mode"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
         <div className={`w-full transition-all duration-150 ${isMultiline ? "flex flex-col gap-1.5" : "flex items-center gap-1.5 sm:gap-2"}`}>
           {/* Start: Add File Button in Single-line mode */}
           {!isMultiline && renderAddFileButton()}
@@ -492,7 +556,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             dir={inputIsRtl ? "rtl" : "ltr"}
-            placeholder={t("sendMessagePlaceholder")}
+            placeholder={
+              isDirectImageMode
+                ? t("directImagePlaceholder")
+                : t("sendMessagePlaceholder")
+            }
             rows={1}
             className={`${
               isMultiline

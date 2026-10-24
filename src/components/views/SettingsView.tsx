@@ -33,12 +33,14 @@ import {
   Upload,
   Sparkles,
   Brain,
+  Image as ImageIcon,
 } from "lucide-react";
 import { AIProvider, AppSettings, ConnectionStatus, Conversation, OllamaModel, UnifiedModel } from "../../types";
 import { OllamaApi } from "../../services/ollamaApi";
 import { BUILTIN_THEMES, ThemeEngine, CustomTheme, normalizeThemeColors } from "../../lib/themeEngine";
 import { formatBytes } from "../../lib/formatters";
 import { Language, getTranslation } from "../../lib/i18n";
+import { DEFAULT_IMAGE_PROMPT_INSTRUCTIONS } from "../../lib/storage";
 import { ModelManagementTab } from "../settings/ModelManagementTab";
 import { ProviderManagementTab } from "../settings/ProviderManagementTab";
 import { ContextExplorerView } from "./ContextExplorerView";
@@ -796,6 +798,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] text-xs p-3 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] leading-relaxed font-mono"
                     />
                   )}
+                </div>
+
+                {/* Configurable Image-Intent Detection & Prompt Instructions */}
+                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-pink-950/50 border border-pink-800/40 flex items-center justify-center text-pink-400 shrink-0">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">
+                          {t("imagePromptInstructionsHeading")}
+                        </h3>
+                        <p className="text-[11px] text-[var(--text-secondary,#9ba3b2)]">
+                          {t("imagePromptInstructionsDesc")}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleAutoSave({
+                          ...formData,
+                          imagePromptInstructions: DEFAULT_IMAGE_PROMPT_INSTRUCTIONS,
+                        });
+                      }}
+                      className="text-[11px] text-[var(--accent-color,#818cf8)] hover:underline cursor-pointer shrink-0"
+                    >
+                      {settings.language === "fa" ? "بازنشانی پیش‌فرض" : "Reset Default"}
+                    </button>
+                  </div>
+
+                  <textarea
+                    value={formData.imagePromptInstructions ?? DEFAULT_IMAGE_PROMPT_INSTRUCTIONS}
+                    onChange={(e) => setFormData({ ...formData, imagePromptInstructions: e.target.value })}
+                    onBlur={() => handleAutoSave(formData)}
+                    rows={8}
+                    className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] text-xs p-3 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-pink-500/70 leading-relaxed font-mono"
+                    placeholder="Instructions for converting Persian and English requests into ComfyUI prompts..."
+                  />
+
+                  <p className="text-[10.5px] text-[var(--text-muted,#777)] font-mono leading-relaxed">
+                    {settings.language === "fa"
+                      ? "نکته: این تنظیمات فقط برای تولید تصویر گفتگو-محور (Chat-Assisted) اعمال می‌شود. تولید مستقیم از منوی (+) از این دستورالعمل‌ها مستقل است و مدل متنی را دور می‌زند."
+                      : "Note: These instructions only apply to chat-assisted image generation. Direct generation triggered from the (+) menu bypasses the LLM and sends your exact prompt to ComfyUI."}
+                  </p>
                 </div>
 
                 {/* Global Default Generation Parameters */}

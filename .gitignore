@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+data/generated_images/*
+!data/generated_images/.gitkeep

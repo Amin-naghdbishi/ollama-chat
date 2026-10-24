@@ -1,5 +1,6 @@
 import { ChatMessage, AppSettings } from "../types";
 import { ProviderService } from "./providerService";
+import { DEFAULT_IMAGE_PROMPT_INSTRUCTIONS } from "../lib/storage";
 
 /**
  * Detects explicit image generation requests in Persian and English while avoiding false positives
@@ -114,9 +115,9 @@ export async function synthesizeImagePrompt(params: {
     .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.slice(0, 500)}`)
     .join("\n\n");
 
-  const promptSynthesisInstruction = `You are an expert AI image prompt engineer for Stable Diffusion, SDXL, and Flux diffusion models.
-The user wants to generate an image based on their conversation and request.
-The request may be in English or Persian (Farsi).
+  const customInstructions = settings.imagePromptInstructions?.trim() || DEFAULT_IMAGE_PROMPT_INSTRUCTIONS;
+
+  const promptSynthesisInstruction = `${customInstructions}
 
 Relevant conversation history:
 ${contextSnippet ? contextSnippet : "(No prior conversation)"}
@@ -124,17 +125,8 @@ ${contextSnippet ? contextSnippet : "(No prior conversation)"}
 User's generation request:
 "${userPrompt}"
 
-Instructions:
-1. Understand the core subject, composition, atmosphere, colors, lighting, and style desired by the user.
-2. If the user refers to pronouns or contextual entities like "him", "her", "it", "this scene", «این صحنه», «او», «این ایده», resolve them explicitly from the conversation history above.
-3. If the user's request or conversation is in Persian, translate the conceptual description into a vivid, descriptive English prompt (diffusion models achieve best quality with English tags and descriptive clauses).
-4. Preserve important details including subjects, composition, art style, atmosphere, lighting, and requested aspect ratio.
-5. Produce a single, comprehensive text-to-image prompt.
-
-Rules:
-- Output ONLY the descriptive prompt text.
-- Do NOT output any preamble, conversational greeting ("Sure, here is..."), markdown formatting, or quotation marks.
-- Keep the prompt concise, rich, and under 150 words.`;
+Task:
+Produce a single, comprehensive text-to-image prompt based on the instructions and context above. Output ONLY the descriptive prompt text in English without commentary.`;
 
   try {
     let resultText = "";

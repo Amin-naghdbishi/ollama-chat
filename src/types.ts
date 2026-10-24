@@ -363,6 +363,7 @@ export interface AppSettings {
   defaultSystemPrompt?: string; // Legacy field for migration
   comfyUiEndpoint?: string; // Default: "http://127.0.0.1:8188"
   selectedImageModel?: string | null; // Selected ComfyUI checkpoint
+  imagePromptInstructions?: string; // Configurable image-intent & prompt synthesis instructions
 }
 
 export interface ModelCapabilityInfo {

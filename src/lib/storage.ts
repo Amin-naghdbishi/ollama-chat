@@ -111,6 +111,22 @@ export const DEFAULT_PROVIDERS: AIProvider[] = [
   },
 ];
 
+export const DEFAULT_IMAGE_PROMPT_INSTRUCTIONS = `You are an expert AI image prompt engineer for Stable Diffusion, SDXL, and Flux diffusion models.
+The user wants to generate an image based on their conversation and request.
+The request may be in English or Persian (Farsi).
+
+Instructions:
+1. Understand the core subject, composition, atmosphere, colors, lighting, and style desired by the user.
+2. If the user refers to pronouns or contextual entities like "him", "her", "it", "this scene", «این صحنه», «او», «این ایده», resolve them explicitly from the conversation history.
+3. If the user's request or conversation is in Persian, translate the conceptual description into a vivid, descriptive English prompt suitable for text-to-image models.
+4. Preserve important details including subjects, composition, art style, atmosphere, lighting, and requested aspect ratio.
+5. Produce a single, comprehensive, high-quality text-to-image prompt.
+
+Rules:
+- Output ONLY the descriptive prompt text in English.
+- Do NOT output any preamble, conversational greeting ("Sure, here is..."), markdown formatting, or quotation marks.
+- Keep the prompt concise, rich, and under 150 words.`;
+
 export const DEFAULT_SETTINGS: AppSettings = {
   endpoint: "http://127.0.0.1:11434",
   connectionMode: "proxy",
@@ -128,6 +144,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "en",
   comfyUiEndpoint: "http://127.0.0.1:8188",
   selectedImageModel: null,
+  imagePromptInstructions: DEFAULT_IMAGE_PROMPT_INSTRUCTIONS,
 };
 
 export const Storage = {

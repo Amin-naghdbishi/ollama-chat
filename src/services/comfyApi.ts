@@ -300,9 +300,10 @@ class ComfyApiService {
     const { promptId, clientId, totalSteps = 20, endpoint, onProgress, signal } = params;
 
     let ws: any = null;
+    let lastProgressTime = 0;
     const cleanEndpoint = (endpoint || "http://127.0.0.1:8188").replace(/\/$/, "");
 
-    // Attempt WebSocket connection for accurate real-time progress events from ComfyUI
+    // Attempt WebSocket connection for lightweight real-time progress events from ComfyUI
     if (typeof WebSocket !== "undefined") {
       try {
         const wsUrl = cleanEndpoint.replace(/^http/, "ws") + `/ws?clientId=${clientId || promptId}`;
@@ -314,8 +315,13 @@ class ComfyApiService {
               if (msg.type === "progress" && msg.data) {
                 const { value, max, prompt_id } = msg.data;
                 if (!prompt_id || prompt_id === promptId) {
-                  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : undefined;
-                  onProgress?.({ step: value, totalSteps: max || totalSteps, percent });
+                  const now = Date.now();
+                  // Lightweight progress throttling: at most once every 350ms or on completion
+                  if (now - lastProgressTime >= 350 || value === max) {
+                    lastProgressTime = now;
+                    const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : undefined;
+                    onProgress?.({ step: value, totalSteps: max || totalSteps, percent });
+                  }
                 }
               }
             }
@@ -328,7 +334,7 @@ class ComfyApiService {
       }
     }
 
-    const maxPollAttempts = 300; // up to 4-5 minutes
+    const maxPollAttempts = 300; // up to 5 minutes with lightweight 1s cadence
     let attempt = 0;
 
     try {
@@ -342,7 +348,7 @@ class ComfyApiService {
         }
 
         attempt++;
-        await new Promise((r) => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 1000));
 
         // Check history
         const { url: historyUrl, headers: historyHeaders } = this.resolveUrl(`history/${promptId}`, endpoint);
