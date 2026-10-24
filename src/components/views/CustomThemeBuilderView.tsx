@@ -30,13 +30,15 @@ import {
 } from "../../lib/themeEngine";
 import { calculateContrast } from "../../lib/colorUtils";
 import { ColorTokenField } from "../theme/ColorTokenField";
-import { LiveThemePreview } from "../theme/LiveThemePreview";
+import { LiveThemePreview, PreviewTab } from "../theme/LiveThemePreview";
+import { Language, getTranslation } from "../../lib/i18n";
 
 interface CustomThemeBuilderViewProps {
   initialThemeId?: string;
   baseThemeId?: string;
   onBack: () => void;
   onSaveTheme: (savedTheme: CustomTheme) => void;
+  language?: Language;
 }
 
 export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
@@ -44,7 +46,9 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
   baseThemeId = "dark",
   onBack,
   onSaveTheme,
+  language = "en",
 }) => {
+  const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(language, key);
   // Existing theme lookup or create new
   const existingTheme = useMemo(() => {
     if (initialThemeId) {
@@ -77,6 +81,44 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
   const [activePickerTokenKey, setActivePickerTokenKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Active Preview Section & Temporary Highlight State
+  const [activePreviewTab, setActivePreviewTab] = useState<PreviewTab>("chat");
+  const [highlightedToken, setHighlightedToken] = useState<string | null>(null);
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSelectToken = (tokenKey: string) => {
+    // 1. Context-Aware Preview Navigation
+    if (tokenKey.startsWith("sidebar") || tokenKey === "bgSidebar") {
+      setActivePreviewTab("sidebar");
+    } else if (
+      tokenKey.startsWith("btn") ||
+      tokenKey.startsWith("color") ||
+      tokenKey === "linkColor" ||
+      tokenKey === "textDisabled"
+    ) {
+      setActivePreviewTab("components");
+    } else if (tokenKey.startsWith("input") && !tokenKey.includes("composer")) {
+      setActivePreviewTab("settings");
+    } else {
+      // Chat bubbles, image gen animation, composer, code, backgrounds, text
+      setActivePreviewTab("chat");
+    }
+
+    // 2. Temporary Yellow Highlight: glows briefly and automatically fades out
+    setHighlightedToken(tokenKey);
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedToken(null);
+    }, 1800);
+  };
+
+  const handleOpenPicker = (k: string) => {
+    setActivePickerTokenKey(k);
+    handleSelectToken(k);
+  };
+
   // Accordion section open/collapse states
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     backgrounds: true,
@@ -86,6 +128,7 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
     inputs: true,
     sidebar: false,
     chat: false,
+    imageGen: true,
     code: false,
     borders: false,
     status: false,
@@ -107,6 +150,7 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
       inputs: true,
       sidebar: true,
       chat: true,
+      imageGen: true,
       code: true,
       borders: true,
       status: true,
@@ -122,6 +166,7 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
       inputs: false,
       sidebar: false,
       chat: false,
+      imageGen: false,
       code: false,
       borders: false,
       status: false,
@@ -150,6 +195,7 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
       ...prev,
       [key]: value,
     }));
+    handleSelectToken(key as string);
   };
 
   // Save custom theme
@@ -404,8 +450,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
           MAIN TWO-COLUMN WORKSPACE: TOKEN EDITOR & LIVE PREVIEW
          ==================================================================== */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-        {/* LEFT COLUMN: INDEPENDENT SCROLLABLE TOKEN EDITOR */}
-        <div className="w-full lg:w-1/2 flex flex-col h-full overflow-y-auto p-4 sm:p-6 custom-scrollbar border-r border-[var(--border-color,#282a36)] bg-[var(--bg-primary,#131418)] min-h-0 space-y-4">
+        {/* LEFT COLUMN: COMPACT SCROLLABLE TOKEN EDITOR */}
+        <div className="w-full lg:w-[390px] xl:w-[430px] shrink-0 flex flex-col h-full overflow-y-auto p-3 sm:p-4 custom-scrollbar border-r border-[var(--border-color,#282a36)] bg-[var(--bg-primary,#131418)] min-h-0 space-y-3">
           {/* BASE THEME PRESET SELECTOR CARD */}
           <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3 shrink-0 shadow-xs">
             <div className="flex items-center justify-between">
@@ -576,7 +622,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgPrimary", v)}
                       onResetToBase={() => handleColorChange("bgPrimary", baseThemeConfig.colors.bgPrimary)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                       isImportant
                     />
@@ -591,7 +638,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgSecondary", v)}
                       onResetToBase={() => handleColorChange("bgSecondary", baseThemeConfig.colors.bgSecondary)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -605,7 +653,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgSurface", v)}
                       onResetToBase={() => handleColorChange("bgSurface", baseThemeConfig.colors.bgSurface)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                       isImportant
                     />
@@ -620,7 +669,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgElevated", v)}
                       onResetToBase={() => handleColorChange("bgElevated", baseThemeConfig.colors.bgElevated)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -634,7 +684,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgHeader", v)}
                       onResetToBase={() => handleColorChange("bgHeader", baseThemeConfig.colors.bgHeader)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -689,7 +740,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.textOnBg}
                       contrastContextLabel="Primary Background"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                       isImportant
                     />
@@ -706,7 +758,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.secondaryTextOnBg}
                       contrastContextLabel="Primary Background"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -720,7 +773,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("textMuted", v)}
                       onResetToBase={() => handleColorChange("textMuted", baseThemeConfig.colors.textMuted)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -734,7 +788,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("textDisabled", v)}
                       onResetToBase={() => handleColorChange("textDisabled", baseThemeConfig.colors.textDisabled)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -787,7 +842,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("accentColor", v)}
                       onResetToBase={() => handleColorChange("accentColor", baseThemeConfig.colors.accentColor)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                       isImportant
                     />
@@ -802,7 +858,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("accentHover", v)}
                       onResetToBase={() => handleColorChange("accentHover", baseThemeConfig.colors.accentHover)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -816,7 +873,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("accentActive", v)}
                       onResetToBase={() => handleColorChange("accentActive", baseThemeConfig.colors.accentActive)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -832,7 +890,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.accentTextOnAccent}
                       contrastContextLabel="Accent Color"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                       isImportant
                     />
@@ -888,7 +947,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("btnBg", v)}
                       onResetToBase={() => handleColorChange("btnBg", baseThemeConfig.colors.btnBg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -904,7 +964,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.btnTextOnBtnBg}
                       contrastContextLabel="Button Background"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -918,7 +979,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("btnHover", v)}
                       onResetToBase={() => handleColorChange("btnHover", baseThemeConfig.colors.btnHover)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -932,7 +994,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("btnActive", v)}
                       onResetToBase={() => handleColorChange("btnActive", baseThemeConfig.colors.btnActive)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -946,7 +1009,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("btnDisabledBg", v)}
                       onResetToBase={() => handleColorChange("btnDisabledBg", baseThemeConfig.colors.btnDisabledBg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -960,7 +1024,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("btnDisabledText", v)}
                       onResetToBase={() => handleColorChange("btnDisabledText", baseThemeConfig.colors.btnDisabledText)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1127,7 +1192,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerBg", v)}
                         onResetToBase={() => handleColorChange("composerBg", baseThemeConfig.colors.composerBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1142,7 +1208,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerBorder", v)}
                         onResetToBase={() => handleColorChange("composerBorder", baseThemeConfig.colors.composerBorder || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1157,7 +1224,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerFocusBorder", v)}
                         onResetToBase={() => handleColorChange("composerFocusBorder", baseThemeConfig.colors.composerFocusBorder || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1172,7 +1240,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerText", v)}
                         onResetToBase={() => handleColorChange("composerText", baseThemeConfig.colors.composerText || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1187,7 +1256,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerPlaceholder", v)}
                         onResetToBase={() => handleColorChange("composerPlaceholder", baseThemeConfig.colors.composerPlaceholder || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1202,7 +1272,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("inputBg", v)}
                         onResetToBase={() => handleColorChange("inputBg", baseThemeConfig.colors.inputBg)}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1217,7 +1288,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("inputBorder", v)}
                         onResetToBase={() => handleColorChange("inputBorder", baseThemeConfig.colors.inputBorder)}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1232,7 +1304,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("inputFocus", v)}
                         onResetToBase={() => handleColorChange("inputFocus", baseThemeConfig.colors.inputFocus)}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1254,7 +1327,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendBg", v)}
                         onResetToBase={() => handleColorChange("composerSendBg", baseThemeConfig.colors.composerSendBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1269,7 +1343,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendHoverBg", v)}
                         onResetToBase={() => handleColorChange("composerSendHoverBg", baseThemeConfig.colors.composerSendHoverBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1284,7 +1359,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendDisabledBg", v)}
                         onResetToBase={() => handleColorChange("composerSendDisabledBg", baseThemeConfig.colors.composerSendDisabledBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1299,7 +1375,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendIcon", v)}
                         onResetToBase={() => handleColorChange("composerSendIcon", baseThemeConfig.colors.composerSendIcon || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1314,7 +1391,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendHoverIcon", v)}
                         onResetToBase={() => handleColorChange("composerSendHoverIcon", baseThemeConfig.colors.composerSendHoverIcon || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1329,7 +1407,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendDisabledIcon", v)}
                         onResetToBase={() => handleColorChange("composerSendDisabledIcon", baseThemeConfig.colors.composerSendDisabledIcon || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1344,7 +1423,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendGeneratingBg", v)}
                         onResetToBase={() => handleColorChange("composerSendGeneratingBg", baseThemeConfig.colors.composerSendGeneratingBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1359,7 +1439,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerSendGeneratingIcon", v)}
                         onResetToBase={() => handleColorChange("composerSendGeneratingIcon", baseThemeConfig.colors.composerSendGeneratingIcon || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1381,7 +1462,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOffBg", v)}
                         onResetToBase={() => handleColorChange("composerThinkOffBg", "#27272a")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1396,7 +1478,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOffText", v)}
                         onResetToBase={() => handleColorChange("composerThinkOffText", "#a1a1aa")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1411,7 +1494,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOffBorder", v)}
                         onResetToBase={() => handleColorChange("composerThinkOffBorder", "#3f3f46")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1426,7 +1510,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOffHoverBg", v)}
                         onResetToBase={() => handleColorChange("composerThinkOffHoverBg", "#323238")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1441,7 +1526,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOnBg", v)}
                         onResetToBase={() => handleColorChange("composerThinkOnBg", "#e4e4e7")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1456,7 +1542,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOnText", v)}
                         onResetToBase={() => handleColorChange("composerThinkOnText", "#18181b")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1471,7 +1558,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOnBorder", v)}
                         onResetToBase={() => handleColorChange("composerThinkOnBorder", "#d4d4d8")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1486,7 +1574,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerThinkOnHoverBg", v)}
                         onResetToBase={() => handleColorChange("composerThinkOnHoverBg", "#f4f4f5")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1508,7 +1597,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerAddFileBg", v)}
                         onResetToBase={() => handleColorChange("composerAddFileBg", baseThemeConfig.colors.composerAddFileBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1523,7 +1613,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerAddFileBorder", v)}
                         onResetToBase={() => handleColorChange("composerAddFileBorder", baseThemeConfig.colors.composerAddFileBorder || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1538,7 +1629,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerAddFileText", v)}
                         onResetToBase={() => handleColorChange("composerAddFileText", baseThemeConfig.colors.composerAddFileText || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1553,7 +1645,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerAddFileHoverBg", v)}
                         onResetToBase={() => handleColorChange("composerAddFileHoverBg", baseThemeConfig.colors.composerAddFileHoverBg || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1568,7 +1661,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerAddFileHoverBorder", v)}
                         onResetToBase={() => handleColorChange("composerAddFileHoverBorder", baseThemeConfig.colors.composerAddFileHoverBorder || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1583,7 +1677,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                         onChange={(v) => handleColorChange("composerAddFileHoverText", v)}
                         onResetToBase={() => handleColorChange("composerAddFileHoverText", baseThemeConfig.colors.composerAddFileHoverText || "")}
                         activePickerTokenKey={activePickerTokenKey}
-                        onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                        onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                         onClosePicker={() => setActivePickerTokenKey(null)}
                       />
                     )}
@@ -1638,7 +1733,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgSidebar", v)}
                       onResetToBase={() => handleColorChange("bgSidebar", baseThemeConfig.colors.bgSidebar)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1654,7 +1750,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.sidebarTextOnSidebarBg}
                       contrastContextLabel="Sidebar Background"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1668,7 +1765,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("sidebarHover", v)}
                       onResetToBase={() => handleColorChange("sidebarHover", baseThemeConfig.colors.sidebarHover)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1682,7 +1780,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("sidebarActive", v)}
                       onResetToBase={() => handleColorChange("sidebarActive", baseThemeConfig.colors.sidebarActive)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1696,7 +1795,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("sidebarBorder", v)}
                       onResetToBase={() => handleColorChange("sidebarBorder", baseThemeConfig.colors.sidebarBorder)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1751,7 +1851,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgUserMsg", v)}
                       onResetToBase={() => handleColorChange("bgUserMsg", baseThemeConfig.colors.bgUserMsg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                       isImportant
                     />
@@ -1768,7 +1869,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.userMsgTextOnUserBg}
                       contrastContextLabel="User Message Bubble"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1782,7 +1884,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("bgAssistantMsg", v)}
                       onResetToBase={() => handleColorChange("bgAssistantMsg", baseThemeConfig.colors.bgAssistantMsg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1796,7 +1899,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("assistantMsgText", v)}
                       onResetToBase={() => handleColorChange("assistantMsgText", baseThemeConfig.colors.assistantMsgText)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1810,7 +1914,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("messageHover", v)}
                       onResetToBase={() => handleColorChange("messageHover", baseThemeConfig.colors.messageHover)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1824,8 +1929,89 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("messageBorder", v)}
                       onResetToBase={() => handleColorChange("messageBorder", baseThemeConfig.colors.messageBorder)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ==================================================================
+              IMAGE GENERATION ANIMATION COLORS
+             ================================================================== */}
+          {(isMatch("imageGenColor1", "Image Gen Color 1") ||
+            isMatch("imageGenColor2", "Image Gen Color 2") ||
+            isMatch("imageGenColor3", "Image Gen Color 3")) && (
+            <div className="rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] shadow-xs transition-all">
+              <button
+                type="button"
+                onClick={() => toggleSection("imageGen")}
+                className="w-full p-4 flex items-center justify-between text-left font-bold text-xs text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--bg-secondary,#191a21)]/50 transition-colors cursor-pointer rounded-2xl"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-pink-500/10 text-pink-400">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-semibold">Image Generation Animation</span>
+                    <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted,#6b7280)] font-normal mt-0.5">
+                      <span>Fluid animated gradient colors</span>
+                      {countModified(["imageGenColor1", "imageGenColor2", "imageGenColor3"]) > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full bg-[var(--accent-color,#818cf8)]/20 text-[var(--accent-color,#818cf8)] font-medium">
+                          {countModified(["imageGenColor1", "imageGenColor2", "imageGenColor3"])} modified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {expandedSections.imageGen ? <ChevronUp className="w-4 h-4 text-[var(--text-muted,#6b7280)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-muted,#6b7280)]" />}
+              </button>
+
+              {expandedSections.imageGen && (
+                <div className="p-4 pt-2 space-y-3 border-t border-[var(--border-subtle,#1e2029)]">
+                  {isMatch("imageGenColor1", "Image Gen Color 1") && (
+                    <ColorTokenField
+                      label="Flow Color 1 (Primary)"
+                      tokenKey="imageGenColor1"
+                      value={colors.imageGenColor1 || "#6366f1"}
+                      baseValue={baseThemeConfig.colors.imageGenColor1 || "#6366f1"}
+                      onChange={(v) => handleColorChange("imageGenColor1", v)}
+                      onResetToBase={() => handleColorChange("imageGenColor1", baseThemeConfig.colors.imageGenColor1 || "#6366f1")}
+                      activePickerTokenKey={activePickerTokenKey}
+                      onOpenPicker={handleOpenPicker}
+                      onClosePicker={() => setActivePickerTokenKey(null)}
+                      onSelect={handleSelectToken}
+                    />
+                  )}
+                  {isMatch("imageGenColor2", "Image Gen Color 2") && (
+                    <ColorTokenField
+                      label="Flow Color 2 (Secondary)"
+                      tokenKey="imageGenColor2"
+                      value={colors.imageGenColor2 || "#ec4899"}
+                      baseValue={baseThemeConfig.colors.imageGenColor2 || "#ec4899"}
+                      onChange={(v) => handleColorChange("imageGenColor2", v)}
+                      onResetToBase={() => handleColorChange("imageGenColor2", baseThemeConfig.colors.imageGenColor2 || "#ec4899")}
+                      activePickerTokenKey={activePickerTokenKey}
+                      onOpenPicker={handleOpenPicker}
+                      onClosePicker={() => setActivePickerTokenKey(null)}
+                      onSelect={handleSelectToken}
+                    />
+                  )}
+                  {isMatch("imageGenColor3", "Image Gen Color 3") && (
+                    <ColorTokenField
+                      label="Flow Color 3 (Tertiary)"
+                      tokenKey="imageGenColor3"
+                      value={colors.imageGenColor3 || "#8b5cf6"}
+                      baseValue={baseThemeConfig.colors.imageGenColor3 || "#8b5cf6"}
+                      onChange={(v) => handleColorChange("imageGenColor3", v)}
+                      onResetToBase={() => handleColorChange("imageGenColor3", baseThemeConfig.colors.imageGenColor3 || "#8b5cf6")}
+                      activePickerTokenKey={activePickerTokenKey}
+                      onOpenPicker={handleOpenPicker}
+                      onClosePicker={() => setActivePickerTokenKey(null)}
+                      onSelect={handleSelectToken}
                     />
                   )}
                 </div>
@@ -1879,7 +2065,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("codeBg", v)}
                       onResetToBase={() => handleColorChange("codeBg", baseThemeConfig.colors.codeBg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1893,7 +2080,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("codeHeaderBg", v)}
                       onResetToBase={() => handleColorChange("codeHeaderBg", baseThemeConfig.colors.codeHeaderBg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1909,7 +2097,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       contrastInfo={contrastChecks.codeTextOnCodeBg}
                       contrastContextLabel="Code Background"
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1923,7 +2112,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("codeBorder", v)}
                       onResetToBase={() => handleColorChange("codeBorder", baseThemeConfig.colors.codeBorder)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1937,7 +2127,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("codeInlineBg", v)}
                       onResetToBase={() => handleColorChange("codeInlineBg", baseThemeConfig.colors.codeInlineBg)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1951,7 +2142,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("codeInlineText", v)}
                       onResetToBase={() => handleColorChange("codeInlineText", baseThemeConfig.colors.codeInlineText)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1965,7 +2157,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("syntaxKeyword", v)}
                       onResetToBase={() => handleColorChange("syntaxKeyword", baseThemeConfig.colors.syntaxKeyword || "")}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1979,7 +2172,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("syntaxFunction", v)}
                       onResetToBase={() => handleColorChange("syntaxFunction", baseThemeConfig.colors.syntaxFunction || "")}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -1993,7 +2187,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("syntaxString", v)}
                       onResetToBase={() => handleColorChange("syntaxString", baseThemeConfig.colors.syntaxString || "")}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2007,7 +2202,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("syntaxNumber", v)}
                       onResetToBase={() => handleColorChange("syntaxNumber", baseThemeConfig.colors.syntaxNumber || "")}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2021,7 +2217,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("syntaxComment", v)}
                       onResetToBase={() => handleColorChange("syntaxComment", baseThemeConfig.colors.syntaxComment || "")}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2035,7 +2232,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("syntaxType", v)}
                       onResetToBase={() => handleColorChange("syntaxType", baseThemeConfig.colors.syntaxType || "")}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2087,7 +2285,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("borderColor", v)}
                       onResetToBase={() => handleColorChange("borderColor", baseThemeConfig.colors.borderColor)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2101,7 +2300,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("borderSubtle", v)}
                       onResetToBase={() => handleColorChange("borderSubtle", baseThemeConfig.colors.borderSubtle)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2115,7 +2315,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("borderStrong", v)}
                       onResetToBase={() => handleColorChange("borderStrong", baseThemeConfig.colors.borderStrong)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2170,7 +2371,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("colorSuccess", v)}
                       onResetToBase={() => handleColorChange("colorSuccess", baseThemeConfig.colors.colorSuccess)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2184,7 +2386,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("colorWarning", v)}
                       onResetToBase={() => handleColorChange("colorWarning", baseThemeConfig.colors.colorWarning)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2198,7 +2401,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("colorError", v)}
                       onResetToBase={() => handleColorChange("colorError", baseThemeConfig.colors.colorError)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2212,7 +2416,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("linkColor", v)}
                       onResetToBase={() => handleColorChange("linkColor", baseThemeConfig.colors.linkColor)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2226,7 +2431,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("scrollbarThumb", v)}
                       onResetToBase={() => handleColorChange("scrollbarThumb", baseThemeConfig.colors.scrollbarThumb)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2240,7 +2446,8 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
                       onChange={(v) => handleColorChange("scrollbarThumbHover", v)}
                       onResetToBase={() => handleColorChange("scrollbarThumbHover", baseThemeConfig.colors.scrollbarThumbHover)}
                       activePickerTokenKey={activePickerTokenKey}
-                      onOpenPicker={(k) => setActivePickerTokenKey(k)}
+                      onOpenPicker={handleOpenPicker}
+                      onSelect={handleSelectToken}
                       onClosePicker={() => setActivePickerTokenKey(null)}
                     />
                   )}
@@ -2250,9 +2457,16 @@ export const CustomThemeBuilderView: React.FC<CustomThemeBuilderViewProps> = ({
           )}
         </div>
 
-        {/* RIGHT COLUMN: LIVE INTERACTIVE PREVIEW */}
-        <div className="w-full lg:w-1/2 flex flex-col h-full overflow-y-auto p-4 sm:p-6 bg-[var(--bg-secondary,#191a21)]/30 min-h-0 custom-scrollbar">
-          <LiveThemePreview colors={colors} isDark={isDark} themeName={themeName} />
+        {/* RIGHT COLUMN: PROMINENT FAITHFUL LIVE PREVIEW */}
+        <div className="flex-1 min-w-0 h-full overflow-hidden p-3 sm:p-5 bg-[var(--bg-secondary,#191a21)]/20 min-h-0 flex flex-col">
+          <LiveThemePreview
+            colors={colors}
+            isDark={isDark}
+            themeName={themeName}
+            activeTab={activePreviewTab}
+            onTabChange={setActivePreviewTab}
+            highlightedToken={highlightedToken}
+          />
         </div>
       </div>
     </div>

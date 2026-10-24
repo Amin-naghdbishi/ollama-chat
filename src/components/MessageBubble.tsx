@@ -485,14 +485,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   ) : (
                     /* Generating State: ONLY softly animated, flowing colors */
                     <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#12072b] via-[#080a14] to-[#041a20]">
-                      {/* Floating violet/purple radial glow */}
-                      <div className="absolute -top-10 -left-10 w-52 h-52 rounded-full bg-purple-600/35 blur-3xl animate-flow-1" />
-                      {/* Floating blue radial glow */}
-                      <div className="absolute -bottom-10 -right-10 w-56 h-56 rounded-full bg-blue-600/35 blur-3xl animate-flow-2" />
-                      {/* Floating turquoise radial glow */}
-                      <div className="absolute top-1/4 left-1/4 w-44 h-44 rounded-full bg-cyan-500/25 blur-3xl animate-flow-3" />
-                      {/* Floating deep violet accent */}
-                      <div className="absolute bottom-1/4 left-1/3 w-36 h-36 rounded-full bg-violet-500/30 blur-2xl animate-flow-4" />
+                      {/* Floating color 1 radial glow */}
+                      <div
+                        className="absolute -top-10 -left-10 w-52 h-52 rounded-full blur-3xl animate-flow-1"
+                        style={{ backgroundColor: "var(--image-gen-color-1, #9333ea)", opacity: 0.45 }}
+                      />
+                      {/* Floating color 2 radial glow */}
+                      <div
+                        className="absolute -bottom-10 -right-10 w-56 h-56 rounded-full blur-3xl animate-flow-2"
+                        style={{ backgroundColor: "var(--image-gen-color-2, #2563eb)", opacity: 0.45 }}
+                      />
+                      {/* Floating color 3 radial glow */}
+                      <div
+                        className="absolute top-1/4 left-1/4 w-44 h-44 rounded-full blur-3xl animate-flow-3"
+                        style={{ backgroundColor: "var(--image-gen-color-3, #06b6d4)", opacity: 0.4 }}
+                      />
+                      {/* Floating accent blending */}
+                      <div
+                        className="absolute bottom-1/4 left-1/3 w-36 h-36 rounded-full blur-2xl animate-flow-4"
+                        style={{ backgroundColor: "var(--image-gen-color-1, #9333ea)", opacity: 0.35 }}
+                      />
                     </div>
                   )}
                 </div>

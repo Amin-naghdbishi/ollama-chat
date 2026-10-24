@@ -2061,6 +2061,7 @@ export default function App() {
           <CustomThemeBuilderView
             initialThemeId={activeView.editingThemeId}
             baseThemeId={activeView.baseThemeId}
+            language={settings.language}
             onBack={handleBack}
             onSaveTheme={(savedTheme) => {
               ThemeEngine.saveCustomTheme(savedTheme);

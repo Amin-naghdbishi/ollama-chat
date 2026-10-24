@@ -17,6 +17,7 @@ interface ColorTokenFieldProps {
   activePickerTokenKey?: string | null;
   onOpenPicker?: (tokenKey: string, anchorEl: HTMLElement) => void;
   onClosePicker?: () => void;
+  onSelect?: (tokenKey: string) => void;
 }
 
 export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
@@ -33,6 +34,7 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
   activePickerTokenKey,
   onOpenPicker,
   onClosePicker,
+  onSelect,
 }) => {
   const [copied, setCopied] = useState(false);
   const [inputValue, setInputValue] = useState(value);
@@ -115,19 +117,20 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
 
   return (
     <div
-      className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+      onClick={() => onSelect?.(tokenKey)}
+      className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 cursor-pointer ${
         isChangedFromBase
           ? "bg-[var(--bg-surface,#1f212a)] border-[var(--accent-color,#818cf8)]/50 shadow-xs"
           : "bg-[var(--bg-secondary,#191a21)]/50 border-[var(--border-subtle,#1e2029)] hover:border-[var(--border-color,#282a36)]"
       }`}
     >
-      {/* Label and description */}
-      <div className="flex-1 min-w-0 pr-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)] tracking-tight">
+      {/* Label and token */}
+      <div className="flex-1 min-w-0 pr-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)] tracking-tight truncate">
             {label}
           </span>
-          <span className="text-[10px] font-mono text-[var(--text-muted,#6b7280)] bg-[var(--bg-primary,#131418)]/70 px-1.5 py-0.5 rounded-md border border-[var(--border-subtle,#1e2029)]">
+          <span className="text-[10px] font-mono text-[var(--text-muted,#6b7280)] bg-[var(--bg-primary,#131418)]/70 px-1.5 py-0.2 rounded-md border border-[var(--border-subtle,#1e2029)]">
             {tokenKey}
           </span>
           {isImportant && (
@@ -143,31 +146,35 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
           )}
         </div>
         {description && (
-          <p className="text-[11px] text-[var(--text-muted,#6b7280)] truncate mt-1" title={description}>
+          <p className="text-[10px] text-[var(--text-muted,#6b7280)] truncate mt-0.5" title={description}>
             {description}
           </p>
         )}
 
         {/* Accessibility Contrast Warning Badge */}
         {contrastInfo && contrastInfo.status !== "pass" && (
-          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-amber-400 font-medium bg-amber-500/10 px-2 py-0.5 rounded-md w-fit border border-amber-500/20">
+          <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-400 font-medium bg-amber-500/10 px-1.5 py-0.2 rounded w-fit border border-amber-500/20">
             <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
             <span className="truncate">
-              Low contrast with {contrastContextLabel || "background"} ({contrastInfo.formattedRatio})
+              Low contrast ({contrastInfo.formattedRatio})
             </span>
           </div>
         )}
       </div>
 
       {/* Controls: Color Swatch + Hex Input + Actions */}
-      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
         {/* Custom Color Swatch & Popover Trigger */}
         <div className="relative">
           <button
             ref={swatchBtnRef}
             type="button"
-            onClick={isPickerOpen ? handleClosePicker : handleOpenPicker}
-            className={`w-8 h-8 rounded-lg border shadow-xs flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer relative overflow-hidden ${
+            onClick={() => {
+              onSelect?.(tokenKey);
+              if (isPickerOpen) handleClosePicker();
+              else handleOpenPicker();
+            }}
+            className={`w-7 h-7 rounded-lg border shadow-xs flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer relative overflow-hidden ${
               isPickerOpen
                 ? "ring-2 ring-[var(--accent-color,#818cf8)] border-white/40 scale-105"
                 : "border-black/30 hover:border-white/30"
@@ -201,13 +208,14 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
           <input
             type="text"
             value={inputValue}
+            onFocus={() => onSelect?.(tokenKey)}
             onChange={(e) => setInputValue(e.target.value)}
             onBlur={handleTextBlur}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleTextBlur();
             }}
             placeholder="#000000"
-            className="w-24 px-2.5 py-1.5 rounded-lg bg-[var(--input-bg,#16171e)] border border-[var(--input-border,#2a2d3c)] focus:border-[var(--input-focus,#818cf8)] text-[var(--text-primary,#e6e9f0)] text-xs font-mono tracking-tight focus:outline-hidden"
+            className="w-20 sm:w-22 px-2 py-1 rounded-lg bg-[var(--input-bg,#16171e)] border border-[var(--input-border,#2a2d3c)] focus:border-[var(--input-focus,#818cf8)] text-[var(--text-primary,#e6e9f0)] text-xs font-mono tracking-tight focus:outline-hidden"
             spellCheck={false}
           />
         </div>
@@ -216,8 +224,11 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
         <div ref={presetsBtnRef} className="relative">
           <button
             type="button"
-            onClick={() => setShowPresets(!showPresets)}
-            className={`p-1.5 rounded-lg border text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer ${
+            onClick={() => {
+              onSelect?.(tokenKey);
+              setShowPresets(!showPresets);
+            }}
+            className={`p-1 rounded-lg border text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer ${
               showPresets
                 ? "bg-[var(--btn-hover,#262834)] border-[var(--accent-color,#818cf8)] text-white"
                 : "bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border-[var(--border-color,#282a36)]"
@@ -251,7 +262,7 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
         <button
           type="button"
           onClick={handleCopy}
-          className="p-1.5 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer"
+          className="p-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer"
           title="Copy HEX to clipboard"
         >
           {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -262,7 +273,7 @@ export const ColorTokenField: React.FC<ColorTokenFieldProps> = ({
           <button
             type="button"
             onClick={onResetToBase}
-            className="p-1.5 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-muted,#6b7280)] hover:text-amber-400 transition-colors cursor-pointer"
+            className="p-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-muted,#6b7280)] hover:text-amber-400 transition-colors cursor-pointer"
             title={`Reset to base value (${baseValue})`}
           >
             <RotateCcw className="w-3.5 h-3.5" />

@@ -303,70 +303,56 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               isEmbeddedInSettings={true}
             />
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6">
+            <div className="max-w-3xl mx-auto space-y-4">
               {/* TAB 1: GENERAL */}
               {activeTab === "general" && (
-              <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 <div>
-                  <h2 className="text-base font-bold text-[var(--text-primary,#e6e9f0)]">{t("generalHeading")}</h2>
-                  <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-                    {t("generalSettingsDesc")}
-                  </p>
+                  <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">{t("generalHeading")}</h2>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-4">
-                  <h3 className="text-xs font-bold text-[var(--text-primary,#e6e9f0)] uppercase tracking-wider text-[var(--accent-color,#818cf8)]">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
                     {t("languageAndDirection")}
                   </h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       onClick={() => handleAutoSave({ ...formData, language: "en" })}
-                      className={`p-3.5 rounded-xl border text-left rtl:text-right transition-all cursor-pointer flex items-center justify-between ${
+                      className={`px-3 py-2.5 rounded-xl border text-left rtl:text-right transition-all cursor-pointer flex items-center justify-between ${
                         formData.language === "en"
                           ? "border-[var(--accent-color,#818cf8)] bg-[var(--bg-secondary,#191a21)] ring-1 ring-[var(--accent-color,#818cf8)]/30"
                           : "border-[var(--border-color,#282a36)] bg-[var(--bg-primary,#131418)]/70 hover:border-[var(--text-muted,#6b7280)]"
                       }`}
                     >
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{t("languageEnglish")}</span>
-                        <span className="text-[11px] text-[var(--text-muted,#6b7280)]">{t("ltrLayout")}</span>
-                      </div>
+                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("languageEnglish")}</span>
                       {formData.language === "en" && <Check className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />}
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleAutoSave({ ...formData, language: "fa" })}
-                      className={`p-3.5 rounded-xl border text-left rtl:text-right transition-all cursor-pointer flex items-center justify-between ${
+                      className={`px-3 py-2.5 rounded-xl border text-left rtl:text-right transition-all cursor-pointer flex items-center justify-between ${
                         formData.language === "fa"
                           ? "border-[var(--accent-color,#818cf8)] bg-[var(--bg-secondary,#191a21)] ring-1 ring-[var(--accent-color,#818cf8)]/30"
                           : "border-[var(--border-color,#282a36)] bg-[var(--bg-primary,#131418)]/70 hover:border-[var(--text-muted,#6b7280)]"
                       }`}
                     >
-                      <div className="flex flex-col font-vazir">
-                        <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{t("languagePersian")}</span>
-                        <span className="text-[11px] text-[var(--text-muted,#6b7280)]">{t("rtlLayout")}</span>
-                      </div>
+                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)] font-vazir">{t("languagePersian")}</span>
                       {formData.language === "fa" && <Check className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />}
                     </button>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-4">
-                  <h3 className="text-xs font-bold text-[var(--text-primary,#e6e9f0)] uppercase tracking-wider text-[var(--accent-color,#818cf8)]">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
                     {t("chatInputAndScrolling")}
                   </h3>
 
-                  <div className="space-y-3">
-                    <label className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)] cursor-pointer">
-                      <div className="flex flex-col pr-4 rtl:pr-0 rtl:pl-4">
-                        <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("enterKeySends")}</span>
-                        <span className="text-[11px] text-[var(--text-secondary,#9ba3b2)]">
-                          {t("enterKeyDesc")}
-                        </span>
-                      </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)] cursor-pointer">
+                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("enterKeySends")}</span>
                       <input
                         type="checkbox"
                         checked={formData.enterToSend}
@@ -375,13 +361,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       />
                     </label>
 
-                    <label className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)] cursor-pointer">
-                      <div className="flex flex-col pr-4 rtl:pr-0 rtl:pl-4">
-                        <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("autoScrollTitle")}</span>
-                        <span className="text-[11px] text-[var(--text-secondary,#9ba3b2)]">
-                          {t("autoScrollDesc")}
-                        </span>
-                      </div>
+                    <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)] cursor-pointer">
+                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("autoScrollTitle")}</span>
                       <input
                         type="checkbox"
                         checked={formData.autoScroll}
@@ -396,13 +377,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* TAB 2: APPEARANCE */}
             {activeTab === "appearance" && (
-              <div className="space-y-8 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-base font-bold text-[var(--text-primary,#e6e9f0)]">{t("appearanceHeading")}</h2>
-                    <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-                      {t("appearanceDesc")}
-                    </p>
+                    <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">{t("appearanceHeading")}</h2>
                   </div>
 
                   {/* Builder Actions */}
@@ -484,9 +462,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </div>
                       <div>
                         <p className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{t("noCustomThemesYet")}</p>
-                        <p className="text-[11px] text-[var(--text-muted,#6b7280)] mt-0.5 max-w-sm">
-                          {t("noCustomThemesDesc")}
-                        </p>
                       </div>
                       {onOpenThemeBuilder && (
                         <button
@@ -761,22 +736,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* TAB 5: CHAT & PROMPTS */}
             {activeTab === "chat" && (
-              <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 <div>
-                  <h2 className="text-base font-bold text-[var(--text-primary,#e6e9f0)]">{t("chatParametersHeading")}</h2>
-                  <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-                    {t("chatParametersDesc")}
-                  </p>
+                  <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">{t("chatParametersHeading")}</h2>
                 </div>
 
                 {/* Global System Prompt */}
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{t("enableGlobalSystemPrompt")}</h3>
-                      <p className="text-[11px] text-[var(--text-secondary,#9ba3b2)]">
-                        {t("globalSystemPromptDesc")}
-                      </p>
                     </div>
                     <input
                       type="checkbox"
@@ -801,19 +770,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Configurable Image-Intent Detection & Prompt Instructions */}
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-[var(--accent-color,#818cf8)]/15 border border-[var(--accent-color,#818cf8)]/30 flex items-center justify-center text-[var(--accent-color,#818cf8)] shrink-0">
-                        <ImageIcon className="w-4 h-4" />
-                      </div>
+                      <ImageIcon className="w-4 h-4 text-[var(--accent-color,#818cf8)] shrink-0" />
                       <div>
                         <h3 className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">
                           {t("imagePromptInstructionsHeading")}
                         </h3>
-                        <p className="text-[11px] text-[var(--text-secondary,#9ba3b2)]">
-                          {t("imagePromptInstructionsDesc")}
-                        </p>
                       </div>
                     </div>
                     <button
@@ -847,8 +811,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Global Default Generation Parameters */}
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-4">
-                  <h3 className="text-xs font-bold text-[var(--text-primary,#e6e9f0)] uppercase tracking-wider text-[var(--accent-color,#818cf8)]">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
                     {t("defaultSamplingParams")}
                   </h3>
 
@@ -924,28 +888,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* TAB 6: ADVANCED & STORAGE */}
             {activeTab === "advanced" && (
-              <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 <div>
-                  <h2 className="text-base font-bold text-[var(--text-primary,#e6e9f0)]">{t("advancedHeading")}</h2>
-                  <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-                    {t("advancedDesc")}
-                  </p>
+                  <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">{t("advancedHeading")}</h2>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-4">
-                  <h3 className="text-xs font-bold text-[var(--text-primary,#e6e9f0)] uppercase tracking-wider text-[var(--accent-color,#818cf8)]">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
                     {t("localCacheHeading")}
                   </h3>
 
-                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)]">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)]">
                     <div className="flex items-center gap-3">
-                      <HardDrive className="w-5 h-5 text-[var(--text-muted,#6b7280)]" />
+                      <HardDrive className="w-4.5 h-4.5 text-[var(--text-muted,#6b7280)]" />
                       <div>
                         <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)] block">
                           {t("clientLocalStorage")}
-                        </span>
-                        <span className="text-[11px] text-[var(--text-muted,#6b7280)]">
-                          {t("clientLocalStorageDesc")}
                         </span>
                       </div>
                     </div>
@@ -997,15 +955,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             {/* TAB 7: ABOUT */}
             {activeTab === "about" && (
-              <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-4 animate-fadeIn">
                 <div>
-                  <h2 className="text-base font-bold text-[var(--text-primary,#e6e9f0)]">{t("aboutHeading")}</h2>
-                  <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-                    {t("aboutDesc")}
-                  </p>
+                  <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">{t("aboutHeading")}</h2>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-2.5 text-xs">
                   <div className="flex justify-between py-1.5 border-b border-[var(--border-subtle,#1e2029)]">
                     <span className="text-[var(--text-muted,#6b7280)]">{t("clientAppLabel")}:</span>
                     <span className="text-[var(--text-primary,#e6e9f0)] font-bold">Ollama Desktop Web</span>
@@ -1027,8 +982,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 {/* Keyboard Shortcuts Cheatsheet */}
-                <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
-                  <h3 className="text-xs font-bold text-[var(--text-primary,#e6e9f0)] uppercase tracking-wider text-[var(--accent-color,#818cf8)] flex items-center gap-1.5">
+                <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
+                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider flex items-center gap-1.5">
                     <Keyboard className="w-4 h-4" /> {t("keyboardShortcuts")}
                   </h3>
 

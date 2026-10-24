@@ -469,15 +469,15 @@ html.light {
 }
 
 .animate-flow-1 {
-  animation: flow-1 12s ease-in-out infinite alternate;
+  animation: flow-1 7s ease-in-out infinite alternate;
 }
 .animate-flow-2 {
-  animation: flow-2 15s ease-in-out infinite alternate;
+  animation: flow-2 8.5s ease-in-out infinite alternate;
 }
 .animate-flow-3 {
-  animation: flow-3 18s ease-in-out infinite alternate;
+  animation: flow-3 10s ease-in-out infinite alternate;
 }
 .animate-flow-4 {
-  animation: flow-4 24s linear infinite;
+  animation: flow-4 14s linear infinite;
 }
 

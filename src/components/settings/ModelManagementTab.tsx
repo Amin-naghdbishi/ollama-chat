@@ -162,9 +162,6 @@ export const ModelManagementTab: React.FC<ModelManagementTabProps> = ({
             <Cpu className="w-5 h-5 text-[var(--accent-color,#818cf8)]" />
             <span>Model Management</span>
           </h2>
-          <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-            Manage installed models, discover new weights, and track active downloads across configured providers.
-          </p>
         </div>
 
         {/* Sub-tabs: My Models | Discover | Downloads */}

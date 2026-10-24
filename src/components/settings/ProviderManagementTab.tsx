@@ -218,9 +218,6 @@ export const ProviderManagementTab: React.FC<ProviderManagementTabProps> = ({
             <Server className="w-5 h-5 text-[var(--accent-color,#818cf8)]" />
             <span>Provider Management</span>
           </h2>
-          <p className="text-xs text-[var(--text-secondary,#9ba3b2)] mt-0.5">
-            Connect Ollama, local vLLM / LM Studio instances, OpenRouter, or OpenAI-compatible backends.
-          </p>
         </div>
 
         {/* Add Provider Dropdown / Button */}

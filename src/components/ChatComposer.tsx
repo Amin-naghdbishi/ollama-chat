@@ -300,7 +300,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
       {/* + Menu Dropdown Popover */}
       {isPlusMenuOpen && (
-        <div className="absolute bottom-full left-0 rtl:left-auto rtl:right-0 mb-2 w-56 sm:w-64 rounded-xl bg-[var(--bg-surface,#181920)] border border-[var(--border-color,#323545)] shadow-xl p-1.5 z-50 flex flex-col gap-0.5 animate-fadeIn backdrop-blur-md">
+        <div className="absolute bottom-full left-0 rtl:left-auto rtl:right-0 mb-2 w-52 sm:w-56 rounded-xl bg-[var(--bg-surface,#181920)] border border-[var(--border-color,#323545)] shadow-xl p-1 z-50 flex flex-col gap-0.5 animate-fadeIn backdrop-blur-md">
           {/* 1. Add File */}
           <button
             type="button"
@@ -308,17 +308,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               setIsPlusMenuOpen(false);
               fileInputRef.current?.click();
             }}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
-            <div className="w-6 h-6 rounded-md bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-zinc-300 shrink-0">
-              <Paperclip className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-medium text-xs leading-tight">{t("addFile")}</span>
-              <span className="text-[10px] text-[var(--text-muted,#7a8296)] truncate">
-                {language === "fa" ? "پیوست تصویر یا سند" : "Images, text, documents"}
-              </span>
-            </div>
+            <Paperclip className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-200 transition-colors" />
+            <span className="truncate">{t("addFile")}</span>
           </button>
 
           {/* 2. Direct Image Generation */}
@@ -339,14 +332,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 setTimeout(() => textareaRef.current?.focus(), 50);
               }
             }}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
-            <div className="w-6 h-6 rounded-md bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-zinc-300 shrink-0">
-              <ImageIcon className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-medium text-xs leading-tight">{t("generateImage")}</span>
-            </div>
+            <ImageIcon className="w-4 h-4 shrink-0 text-violet-400 group-hover:text-violet-300 transition-colors" />
+            <span className="truncate">{t("generateImage")}</span>
           </button>
 
           {/* 3. Search Memories */}
@@ -356,57 +345,36 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               setIsPlusMenuOpen(false);
               onOpenContextTool?.("search_memories");
             }}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
-            <div className="w-6 h-6 rounded-md bg-[var(--accent-color,#818cf8)]/15 border border-[var(--accent-color,#818cf8)]/30 flex items-center justify-center text-[var(--accent-color,#818cf8)] shrink-0">
-              <Brain className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-medium text-xs leading-tight">{t("searchMemories")}</span>
-              <span className="text-[10px] text-[var(--text-muted,#7a8296)] truncate">
-                {language === "fa" ? "جستجو در حافظه‌های سراسری" : "Search global memory store"}
-              </span>
-            </div>
+            <Brain className="w-4 h-4 shrink-0 text-amber-400/90 group-hover:text-amber-300 transition-colors" />
+            <span className="truncate">{t("searchMemories")}</span>
           </button>
 
-          {/* 3. Search Conversations */}
+          {/* 4. Search Conversations */}
           <button
             type="button"
             onClick={() => {
               setIsPlusMenuOpen(false);
               onOpenContextTool?.("search_conversations");
             }}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
-            <div className="w-6 h-6 rounded-md bg-emerald-950/50 border border-emerald-800/40 flex items-center justify-center text-emerald-400 shrink-0">
-              <MessageSquare className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-medium text-xs leading-tight">{t("searchConversations")}</span>
-              <span className="text-[10px] text-[var(--text-muted,#7a8296)] truncate">
-                {language === "fa" ? "جستجو در تمام گفتگوهای گذشته" : "Search across all chat ledgers"}
-              </span>
-            </div>
+            <MessageSquare className="w-4 h-4 shrink-0 text-emerald-400/90 group-hover:text-emerald-300 transition-colors" />
+            <span className="truncate">{t("searchConversations")}</span>
           </button>
 
-          {/* 4. Search Context */}
+          {/* 5. Search Context */}
           <button
             type="button"
             onClick={() => {
               setIsPlusMenuOpen(false);
               onOpenContextTool?.("search_context");
             }}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
-            <div className="w-6 h-6 rounded-md bg-sky-950/50 border border-sky-800/40 flex items-center justify-center text-sky-400 shrink-0">
-              <BookOpen className="w-3.5 h-3.5" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-medium text-xs leading-tight">{t("searchContext")}</span>
-              <span className="text-[10px] text-[var(--text-muted,#7a8296)] truncate">
-                {language === "fa" ? "جستجو در پیام‌های این گفتگو" : "Search active chat context & turns"}
-              </span>
-            </div>
+            <BookOpen className="w-4 h-4 shrink-0 text-sky-400/90 group-hover:text-sky-300 transition-colors" />
+            <span className="truncate">{t("searchContext")}</span>
           </button>
         </div>
       )}

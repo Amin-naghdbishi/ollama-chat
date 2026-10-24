@@ -123,7 +123,6 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
       } else if (e.key === "Enter" && filteredModels[selectedIndex]) {
         e.preventDefault();
         onSelectModel(filteredModels[selectedIndex].name);
-        onClose();
       } else if (e.key === "Escape") {
         onClose();
       }
@@ -303,7 +302,6 @@ export const ModelSelectorModal: React.FC<ModelSelectorModalProps> = ({
                   key={m.name}
                   onClick={() => {
                     onSelectModel(m.name);
-                    onClose();
                   }}
                   className={`group flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
                     isSelected

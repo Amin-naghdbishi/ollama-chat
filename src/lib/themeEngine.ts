@@ -126,6 +126,11 @@ export interface ThemeColors {
   composerAddFileHoverBorder?: string;
   composerAddFileHoverText?: string;
 
+  // Image Generation Animation
+  imageGenColor1?: string;
+  imageGenColor2?: string;
+  imageGenColor3?: string;
+
   // Legacy composer keys
   composerBtnBg?: string;
   composerBtnHover?: string;
@@ -222,6 +227,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(255, 255, 255, 0.12)",
       scrollbarThumbHover: "rgba(255, 255, 255, 0.25)",
+
+      imageGenColor1: "#9333ea",
+      imageGenColor2: "#2563eb",
+      imageGenColor3: "#06b6d4",
     },
   },
   light: {
@@ -292,6 +301,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(0, 0, 0, 0.14)",
       scrollbarThumbHover: "rgba(0, 0, 0, 0.28)",
+
+      imageGenColor1: "#8b5cf6",
+      imageGenColor2: "#3b82f6",
+      imageGenColor3: "#0891b2",
     },
   },
   "soft-gray": {
@@ -362,6 +375,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(0, 0, 0, 0.14)",
       scrollbarThumbHover: "rgba(0, 0, 0, 0.28)",
+
+      imageGenColor1: "#6366f1",
+      imageGenColor2: "#3b82f6",
+      imageGenColor3: "#06b6d4",
     },
   },
   "warm-light": {
@@ -432,6 +449,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(120, 113, 108, 0.18)",
       scrollbarThumbHover: "rgba(120, 113, 108, 0.35)",
+
+      imageGenColor1: "#d97706",
+      imageGenColor2: "#ea580c",
+      imageGenColor3: "#059669",
     },
   },
   "deep-black": {
@@ -502,6 +523,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(255, 255, 255, 0.14)",
       scrollbarThumbHover: "rgba(255, 255, 255, 0.32)",
+
+      imageGenColor1: "#9333ea",
+      imageGenColor2: "#2563eb",
+      imageGenColor3: "#06b6d4",
     },
   },
   graphite: {
@@ -572,6 +597,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(255, 255, 255, 0.12)",
       scrollbarThumbHover: "rgba(255, 255, 255, 0.25)",
+
+      imageGenColor1: "#818cf8",
+      imageGenColor2: "#3b82f6",
+      imageGenColor3: "#2dd4bf",
     },
   },
   midnight: {
@@ -642,6 +671,10 @@ export const BUILTIN_THEMES: Record<string, ThemeConfig> = {
       scrollbarTrack: "transparent",
       scrollbarThumb: "rgba(20, 184, 166, 0.2)",
       scrollbarThumbHover: "rgba(20, 184, 166, 0.4)",
+
+      imageGenColor1: "#0d9488",
+      imageGenColor2: "#0284c7",
+      imageGenColor3: "#14b8a6",
     },
   },
 };
@@ -982,6 +1015,11 @@ export const ThemeEngine = {
       "--composer-add-file-hover-bg": colors.composerAddFileHoverBg || colors.btnHover,
       "--composer-add-file-hover-border": colors.composerAddFileHoverBorder || colors.borderStrong || colors.borderColor,
       "--composer-add-file-hover-text": colors.composerAddFileHoverText || colors.textPrimary,
+
+      // Image Generation Animation
+      "--image-gen-color-1": colors.imageGenColor1 || "#9333ea",
+      "--image-gen-color-2": colors.imageGenColor2 || "#2563eb",
+      "--image-gen-color-3": colors.imageGenColor3 || "#06b6d4",
 
       // Legacy fallback
       "--composer-btn-bg": colors.composerBtnBg || colors.btnBg,

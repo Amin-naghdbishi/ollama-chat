@@ -23,6 +23,7 @@ import { formatBytes } from "../../lib/formatters";
 import { detectModelCapabilities } from "../../services/ollamaApi";
 import { Storage } from "../../lib/storage";
 import { getDefaultImageModelProfile } from "../../services/imageSettingsService";
+import { getTranslation } from "../../lib/i18n";
 
 interface ModelSelectionViewProps {
   models: OllamaModel[];
@@ -74,6 +75,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
   onStopComfy,
   isStartingComfy = false,
 }) => {
+  const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(settings.language, key);
   const [activeTab, setActiveTab] = useState<"chat" | "image">("chat");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "vision" | "reasoning" | "favorites">("all");
@@ -135,7 +137,6 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
       } else if (e.key === "Enter" && filteredModels[selectedIndex]) {
         e.preventDefault();
         onSelectModel(filteredModels[selectedIndex].name);
-        onBack();
       } else if (e.key === "Escape") {
         onBack();
       }
@@ -169,8 +170,8 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs font-medium text-[var(--text-primary,#e6e9f0)] hover:text-white transition-all shadow-xs cursor-pointer group"
             title="Return to previous view"
           >
-            <ArrowLeft className="w-4 h-4 text-[var(--accent-color,#818cf8)] group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back</span>
+            <ArrowLeft className="w-4 h-4 text-[var(--accent-color,#818cf8)] group-hover:-translate-x-0.5 transition-transform rtl:rotate-180" />
+            <span>{t("back")}</span>
           </button>
 
           <div className="h-4 w-px bg-[var(--border-color,#282a36)]" />
@@ -189,7 +190,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
               }`}
             >
               <Cpu className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)]" />
-              <span>Chat Models ({models.length})</span>
+              <span>{t("chatModels")} ({models.length})</span>
             </button>
             <button
               onClick={() => {
@@ -203,7 +204,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
               }`}
             >
               <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)]" />
-              <span>Image Models ({imageModels.length})</span>
+              <span>{t("imageModels")} ({imageModels.length})</span>
             </button>
           </div>
         </div>
@@ -215,7 +216,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
           title="Refresh models list"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${(activeTab === "chat" ? isLoadingModels : isLoadingImageModels) ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Refresh</span>
+          <span className="hidden sm:inline">{t("refresh")}</span>
         </button>
       </header>
 
@@ -229,11 +230,13 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                 <div className="flex items-center gap-2.5">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${getStatusColor(ollamaServiceState)}`} />
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[var(--text-primary,#eee)]">Ollama Service:</span>
-                    <span className="text-xs font-mono font-medium text-[var(--text-secondary,#aaa)]">{ollamaServiceState}</span>
+                    <span className="text-xs font-semibold text-[var(--text-primary,#eee)]">{t("ollamaService")}:</span>
+                    <span className="text-xs font-mono font-medium text-[var(--text-secondary,#aaa)]">
+                      {ollamaServiceState === "Running" ? t("serviceRunning") : ollamaServiceState === "Starting" ? t("serviceStarting") : ollamaServiceState === "Error" ? t("serviceError") : t("serviceStopped")}
+                    </span>
                   </div>
                   <span className="text-neutral-600 hidden sm:inline">•</span>
-                  <span className="text-[11px] font-mono text-[var(--text-muted,#777)] hidden sm:inline">
+                  <span className="text-[11px] font-mono text-[var(--text-muted,#777)] hidden sm:inline dir-ltr">
                     {settings.endpoint || "http://127.0.0.1:11434"}
                   </span>
                 </div>
@@ -245,12 +248,12 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       className="px-2.5 py-1 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-red-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Square className="w-3 h-3 fill-current" />
-                      <span>Stop Service</span>
+                      <span>{t("stopService")}</span>
                     </button>
                   ) : ollamaServiceState === "Starting" || isStartingOllama ? (
                     <span className="px-2.5 py-1 rounded-xl bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs font-medium flex items-center gap-1.5">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Starting...</span>
+                      <span>{t("serviceStarting")}</span>
                     </span>
                   ) : (
                     <button
@@ -258,7 +261,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       className="px-2.5 py-1 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/50 text-emerald-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Play className="w-3 h-3 fill-current" />
-                      <span>Start Service</span>
+                      <span>{t("startService")}</span>
                     </button>
                   )}
                 </div>
@@ -268,19 +271,19 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
               <div className="p-3.5 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3 shadow-xs">
                 {/* Search Input */}
                 <div className="relative flex items-center">
-                  <Search className="w-4 h-4 text-[var(--text-muted,#6b7280)] absolute left-3.5 pointer-events-none" />
+                  <Search className="w-4 h-4 text-[var(--text-muted,#6b7280)] absolute left-3.5 rtl:left-auto rtl:right-3.5 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search chat models (e.g. llama3, qwen, deepseek)..."
-                    className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] font-sans"
+                    placeholder={t("searchModelsPlaceholder")}
+                    className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 rtl:pl-10 rtl:pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] font-sans"
                     autoFocus
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-3.5 text-[var(--text-muted,#6b7280)] hover:text-[var(--text-secondary,#9ba3b2)] cursor-pointer"
+                      className="absolute right-3.5 rtl:right-auto rtl:left-3.5 text-[var(--text-muted,#6b7280)] hover:text-[var(--text-secondary,#9ba3b2)] cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -298,7 +301,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                           : "text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)]"
                       }`}
                     >
-                      All ({models.length})
+                      {t("all")} ({models.length})
                     </button>
                     <button
                       onClick={() => setCategoryFilter("vision")}
@@ -309,7 +312,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       }`}
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>Vision</span>
+                      <span>{t("vision")}</span>
                     </button>
                     <button
                       onClick={() => setCategoryFilter("reasoning")}
@@ -320,7 +323,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       }`}
                     >
                       <Brain className="w-3.5 h-3.5" />
-                      <span>Reasoning</span>
+                      <span>{t("reasoning")}</span>
                     </button>
                     <button
                       onClick={() => setCategoryFilter("favorites")}
@@ -331,22 +334,22 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       }`}
                     >
                       <Star className="w-3.5 h-3.5" />
-                      <span>Favorites ({favoriteModels.length})</span>
+                      <span>{t("favorites")} ({favoriteModels.length})</span>
                     </button>
                   </div>
 
                   {/* Sorting */}
                   <div className="flex items-center gap-2 text-xs text-[var(--text-secondary,#9ba3b2)]">
                     <ArrowUpDown className="w-3.5 h-3.5 text-[var(--text-muted,#6b7280)]" />
-                    <span>Sort:</span>
+                    <span>{t("sortBy")}:</span>
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as any)}
                       className="bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] border border-[var(--input-border,#2a2d3c)] rounded-xl px-2.5 py-1.5 focus:outline-none text-xs"
                     >
-                      <option value="name">Name (A-Z)</option>
-                      <option value="size">Size (Largest)</option>
-                      <option value="family">Architecture</option>
+                      <option value="name">{t("nameAsc")}</option>
+                      <option value="size">{t("sizeLargest")}</option>
+                      <option value="family">{t("family") || "Architecture"}</option>
                     </select>
                   </div>
                 </div>
@@ -380,22 +383,15 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                         }`}
                         onClick={() => {
                           onSelectModel(m.name);
-                          onBack();
                         }}
                       >
                         {/* Model Info & Badges */}
                         <div className="flex items-center gap-3 overflow-hidden">
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                              isSelected
-                                ? "bg-[var(--accent-color,#818cf8)]/15 border-[var(--accent-color,#818cf8)] text-[var(--accent-color,#818cf8)]"
-                                : "bg-[var(--btn-bg,#1c1e27)] border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)]"
-                            }`}
-                          >
-                            <Cpu className="w-4 h-4" />
-                          </div>
+                          <Cpu className={`w-4.5 h-4.5 shrink-0 ${
+                            isSelected ? "text-[var(--accent-color,#818cf8)]" : "text-[var(--text-secondary,#9ba3b2)]"
+                          }`} />
 
-                          <div className="flex flex-col text-left overflow-hidden">
+                          <div className="flex flex-col text-left rtl:text-right overflow-hidden">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-mono font-bold text-xs text-[var(--text-primary,#e6e9f0)] truncate">
                                 {m.name}
@@ -404,21 +400,21 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                               {isSelected && (
                                 <span className="px-2 py-0.5 rounded-full bg-[var(--accent-color,#818cf8)] text-white text-[9.5px] font-bold flex items-center gap-1 shadow-xs">
                                   <Check className="w-2.5 h-2.5" />
-                                  <span>ACTIVE</span>
+                                  <span>{t("active")}</span>
                                 </span>
                               )}
 
                               {hasVision && (
                                 <span className="px-1.5 py-0.5 rounded bg-blue-950/60 border border-blue-800/80 text-blue-300 text-[9.5px] font-medium flex items-center gap-1">
                                   <Eye className="w-2.5 h-2.5" />
-                                  <span>Vision</span>
+                                  <span>{t("vision")}</span>
                                 </span>
                               )}
 
                               {hasThinking && (
                                 <span className="px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-800/80 text-purple-300 text-[9.5px] font-medium flex items-center gap-1">
                                   <Brain className="w-2.5 h-2.5" />
-                                  <span>Reasoning</span>
+                                  <span>{t("reasoning")}</span>
                                 </span>
                               )}
                             </div>
@@ -463,7 +459,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                             className="px-2.5 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
                           >
                             <Info className="w-3 h-3" />
-                            <span>Details</span>
+                            <span>{t("modelDetails")}</span>
                           </button>
 
                           <button
@@ -471,13 +467,14 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                             className="px-2.5 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
                           >
                             <SlidersHorizontal className="w-3 h-3" />
-                            <span>Profile</span>
+                            <span>{t("modelProfile")}</span>
                           </button>
 
                           <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               onSelectModel(m.name);
-                              onBack();
                             }}
                             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                               isSelected
@@ -485,7 +482,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                                 : "bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--accent-color,#818cf8)] hover:text-white border border-[var(--border-color,#282a36)] text-[var(--text-primary,#e6e9f0)]"
                             }`}
                           >
-                            <span>{isSelected ? "Active" : "Select"}</span>
+                            <span>{isSelected ? t("active") : t("select")}</span>
                           </button>
                         </div>
                       </div>
@@ -501,11 +498,13 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                 <div className="flex items-center gap-2.5">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${getStatusColor(comfyServiceState)}`} />
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[var(--text-primary,#eee)]">ComfyUI Service:</span>
-                    <span className="text-xs font-mono font-medium text-[var(--text-secondary,#aaa)]">{comfyServiceState}</span>
+                    <span className="text-xs font-semibold text-[var(--text-primary,#eee)]">{t("comfyService")}:</span>
+                    <span className="text-xs font-mono font-medium text-[var(--text-secondary,#aaa)]">
+                      {comfyServiceState === "Running" ? t("serviceRunning") : comfyServiceState === "Starting" ? t("serviceStarting") : comfyServiceState === "Error" ? t("serviceError") : t("serviceStopped")}
+                    </span>
                   </div>
                   <span className="text-neutral-600 hidden sm:inline">•</span>
-                  <span className="text-[11px] font-mono text-[var(--text-muted,#777)] hidden sm:inline">
+                  <span className="text-[11px] font-mono text-[var(--text-muted,#777)] hidden sm:inline dir-ltr">
                     {settings.comfyUiEndpoint || "http://127.0.0.1:8188"}
                   </span>
                 </div>
@@ -517,12 +516,12 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       className="px-2.5 py-1 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-red-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Square className="w-3 h-3 fill-current" />
-                      <span>Stop Service</span>
+                      <span>{t("stopService")}</span>
                     </button>
                   ) : comfyServiceState === "Starting" || isStartingComfy ? (
                     <span className="px-2.5 py-1 rounded-xl bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs font-medium flex items-center gap-1.5">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      <span>Starting...</span>
+                      <span>{t("serviceStarting")}</span>
                     </span>
                   ) : (
                     <button
@@ -530,7 +529,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                       className="px-2.5 py-1 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/50 text-emerald-300 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Play className="w-3 h-3 fill-current" />
-                      <span>Start Service</span>
+                      <span>{t("startService")}</span>
                     </button>
                   )}
                 </div>
@@ -538,18 +537,18 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
 
               {/* Checkpoint Search */}
               <div className="relative flex items-center">
-                <Search className="w-4 h-4 text-[var(--text-muted,#6b7280)] absolute left-3.5 pointer-events-none" />
+                <Search className="w-4 h-4 text-[var(--text-muted,#6b7280)] absolute left-3.5 rtl:left-auto rtl:right-3.5 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter ComfyUI checkpoints (e.g. DreamShaper_8, sd_xl, v1-5)..."
-                  className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] font-sans"
+                  className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 rtl:pl-10 rtl:pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] font-sans"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3.5 text-[var(--text-muted,#6b7280)] hover:text-[var(--text-secondary,#9ba3b2)] cursor-pointer"
+                    className="absolute right-3.5 rtl:right-auto rtl:left-3.5 text-[var(--text-muted,#6b7280)] hover:text-[var(--text-secondary,#9ba3b2)] cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -563,12 +562,10 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                   return (
                     <div className="px-4 py-3 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] flex flex-wrap items-center justify-between gap-3 shadow-xs">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-[var(--accent-color,#818cf8)]/15 border border-[var(--accent-color,#818cf8)]/30 flex items-center justify-center text-[var(--accent-color,#818cf8)] shrink-0">
-                          <ImageIcon className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
+                        <ImageIcon className="w-4.5 h-4.5 text-[var(--accent-color,#818cf8)] shrink-0" />
+                        <div className="min-w-0 text-left rtl:text-right">
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-semibold text-[var(--text-muted,#888)]">Active Model Profile:</span>
+                            <span className="text-[11px] font-semibold text-[var(--text-muted,#888)]">{t("activeModelProfile")}:</span>
                             <span className="font-mono text-xs font-bold text-[var(--text-primary,#eee)] truncate">{selectedImageModel}</span>
                           </div>
                           <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono text-[var(--text-secondary,#aaa)]">
@@ -587,7 +584,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                         className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-primary,#e6e9f0)] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
                       >
                         <SlidersHorizontal className="w-3 h-3 text-[var(--accent-color,#818cf8)]" />
-                        <span>Configure Profile</span>
+                        <span>{t("modelProfile")}</span>
                       </button>
                     </div>
                   );
@@ -615,17 +612,11 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                             : "bg-[var(--bg-surface,#1f212a)] border-[var(--border-color,#282a36)] hover:border-[var(--text-muted,#6b7280)]"
                         }`}
                       >
-                        <div className="flex items-center gap-3 min-w-0 mr-3">
-                          <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                              isSelected
-                                ? "bg-[var(--accent-color,#818cf8)]/15 border-[var(--accent-color,#818cf8)] text-[var(--accent-color,#818cf8)]"
-                                : "bg-[var(--bg-primary,#16171d)] border-[var(--border-color,#282a36)] text-[var(--text-muted,#888)]"
-                            }`}
-                          >
-                            <ImageIcon className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 mr-3 rtl:mr-0 rtl:ml-3">
+                          <ImageIcon className={`w-4.5 h-4.5 shrink-0 ${
+                            isSelected ? "text-[var(--accent-color,#818cf8)]" : "text-[var(--text-muted,#888)]"
+                          }`} />
+                          <div className="min-w-0 text-left rtl:text-right">
                             <span className="font-semibold text-xs text-[var(--text-primary,#eee)] font-mono block truncate" title={ckpt}>
                               {ckpt}
                             </span>
@@ -647,20 +638,21 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                             title="Configure image generation settings & defaults"
                           >
                             <SlidersHorizontal className="w-3 h-3" />
-                            <span>Profile</span>
+                            <span>{t("modelProfile")}</span>
                           </button>
 
                           {isSelected ? (
                             <span className="px-3 py-1.5 rounded-xl bg-[var(--accent-color,#818cf8)] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs">
                               <Check className="w-3.5 h-3.5" />
-                              <span>Active</span>
+                              <span>{t("active")}</span>
                             </span>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => onSelectImageModel?.(ckpt)}
                               className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer font-medium"
                             >
-                              Select
+                              {t("select")}
                             </button>
                           )}
                         </div>

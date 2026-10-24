@@ -303,11 +303,6 @@ export const ContextExplorerView: React.FC<ContextExplorerViewProps> = ({
                     {language === "fa" ? "آماده بازیابی" : "Integrity & Recovery Ready"}
                   </span>
                 </h1>
-                <p className="text-[11px] text-[var(--text-muted,#666)] hidden sm:block">
-                  {language === "fa"
-                    ? "استخراج فکت‌ها، فشرده‌سازی چرخه‌ای، یکپارچه‌سازی و بازیابی عمیق"
-                    : "Structured factual extraction, multi-cycle compression, deduplication, and deep historical recall"}
-                </p>
               </div>
             </div>
           </div>
