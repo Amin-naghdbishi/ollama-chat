@@ -1,0 +1,6 @@
+{
+  "name": "Ollama Chat Desktop",
+  "description": "A high-performance AI desktop client supporting local Ollama models and cloud providers with real-time streaming, model management, provider customization, and theme builder.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

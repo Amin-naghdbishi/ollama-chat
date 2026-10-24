@@ -1,0 +1,442 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+/* ==========================================================================
+   LOCAL FONT FACES (Zero external CDN dependency)
+   ========================================================================== */
+
+/* --- Plus Jakarta Sans (English / Latin Primary Font) --- */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/plus-jakarta-sans-bold.woff2") format("woff2");
+}
+
+/* --- Vazirmatn (Persian / Farsi & RTL Primary Font) --- */
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/vazirmatn-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/vazirmatn-medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/vazirmatn-semibold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/vazirmatn-bold.woff2") format("woff2");
+}
+
+/* --- JetBrains Mono (Code, Syntax Highlighting & Technical Metrics) --- */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-bold.woff2") format("woff2");
+}
+
+/* ==========================================================================
+   GLOBAL CUSTOM SCROLLBAR SYSTEM
+   ========================================================================== */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.15)) var(--scrollbar-track, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track, transparent);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.15));
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb, rgba(255, 255, 255, 0.15)) var(--scrollbar-track, transparent);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--scrollbar-track, transparent);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.15));
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+}
+
+/* ==========================================================================
+   GLOBAL SELECTION & BODY / TYPOGRAPHY STYLING
+   ========================================================================== */
+
+::selection {
+  background-color: var(--selection-bg, rgba(129, 140, 248, 0.3));
+  color: var(--selection-text, #ffffff);
+}
+
+body {
+  background-color: var(--bg-primary, #0d0d10);
+  color: var(--text-primary, #f3f4f6);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Persian / RTL Typography Mode */
+html[lang="fa"],
+html[dir="rtl"],
+[dir="rtl"],
+.font-vazir {
+  font-family: "Vazirmatn", "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+html[lang="en"],
+html[dir="ltr"],
+.font-latin {
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Monospace font standard with pristine character distinction */
+.font-mono,
+pre,
+code,
+kbd,
+samp {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-feature-settings: "calt" 1, "liga" 1, "zero" 1;
+  direction: ltr !important;
+  text-align: left;
+}
+
+/* Mixed RTL/LTR text handling */
+.mixed-text {
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+
+.force-ltr {
+  direction: ltr !important;
+  text-align: left !important;
+  unicode-bidi: embed;
+}
+
+.force-rtl {
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: embed;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.15s ease-out forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+/* ==========================================================================
+   SYNTAX HIGHLIGHTING TOKENS - DARK MODE (DEFAULT)
+   ========================================================================== */
+
+:root,
+html.dark {
+  --code-bg: #121319;
+  --code-header-bg: #181a23;
+  --code-text: #e2e8f0;
+  --code-border: #282a36;
+  --code-inline-bg: #1e202b;
+  --code-inline-text: #f472b6;
+
+  /* Syntax Highlighting Default Palette - Dark */
+  --default-syntax-keyword: #ff7b72;
+  --default-syntax-function: #79c0ff;
+  --default-syntax-variable: #e2e8f0;
+  --default-syntax-string: #a5d6ff;
+  --default-syntax-number: #ffa657;
+  --default-syntax-comment: #8b949e;
+  --default-syntax-type: #d2a8ff;
+  --default-syntax-operator: #cbd5e1;
+  --default-syntax-constant: #f472b6;
+  --default-syntax-tag: #7ee787;
+  --default-syntax-attr: #79c0ff;
+  --default-syntax-builtin: #56d364;
+  --default-syntax-punctuation: #94a3b8;
+  --default-syntax-regex: #7ee787;
+}
+
+/* ==========================================================================
+   SYNTAX HIGHLIGHTING TOKENS - LIGHT MODE
+   ========================================================================== */
+
+html.light {
+  --code-bg: #f6f8fa;
+  --code-header-bg: #ebeff5;
+  --code-text: #24292f;
+  --code-border: #d0d7de;
+  --code-inline-bg: #eff2f6;
+  --code-inline-text: #cf222e;
+
+  /* Syntax Highlighting Optimized Palette - Light */
+  --default-syntax-keyword: #cf222e;
+  --default-syntax-function: #0969da;
+  --default-syntax-variable: #24292f;
+  --default-syntax-string: #0a8537;
+  --default-syntax-number: #953800;
+  --default-syntax-comment: #57606a;
+  --default-syntax-type: #8250df;
+  --default-syntax-operator: #24292f;
+  --default-syntax-constant: #0550ae;
+  --default-syntax-tag: #116329;
+  --default-syntax-attr: #0969da;
+  --default-syntax-builtin: #0e7490;
+  --default-syntax-punctuation: #57606a;
+  --default-syntax-regex: #b42318;
+}
+
+/* ==========================================================================
+   SYNTAX HIGHLIGHTING (HLJS) ENGINE RULES
+   ========================================================================== */
+
+.hljs {
+  color: var(--code-text, #e2e8f0);
+  background: transparent;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 13px;
+  line-height: 1.7;
+  letter-spacing: 0.015em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Comments, JSDoc, Docstrings */
+.hljs-comment,
+.hljs-quote,
+.hljs-doctag {
+  color: var(--syntax-comment, var(--default-syntax-comment));
+  font-style: italic;
+}
+
+/* Keywords (import, export, const, let, if, else, return, def, function, class, etc.) */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section {
+  color: var(--syntax-keyword, var(--default-syntax-keyword));
+  font-weight: 600;
+}
+
+/* Functions & Methods */
+.hljs-title.function_,
+.hljs-function .hljs-title,
+.hljs-title {
+  color: var(--syntax-function, var(--default-syntax-function));
+  font-weight: 500;
+}
+
+/* Classes, Interfaces, Types, Structs & Parameters */
+.hljs-title.class_,
+.hljs-class .hljs-title,
+.hljs-type,
+.hljs-params {
+  color: var(--syntax-type, var(--default-syntax-type));
+  font-weight: 600;
+}
+
+/* Strings, Template Literals, Character Constants */
+.hljs-string,
+.hljs-template-punctuation,
+.hljs-string .hljs-subst {
+  color: var(--syntax-string, var(--default-syntax-string));
+}
+
+/* Numbers, Floats, Hex, Binaries */
+.hljs-number {
+  color: var(--syntax-number, var(--default-syntax-number));
+  font-weight: 500;
+}
+
+/* Built-in Objects & Global Symbols (console, window, Array, len, Math, etc.) */
+.hljs-built_in,
+.hljs-symbol {
+  color: var(--syntax-builtin, var(--default-syntax-builtin));
+}
+
+/* Literals & Constants (true, false, null, undefined, None, etc.) */
+.hljs-literal {
+  color: var(--syntax-constant, var(--default-syntax-constant));
+  font-weight: 600;
+}
+
+/* Decorators, Meta, Directives, Annotations (#include, @decorator) */
+.hljs-meta,
+.hljs-meta .hljs-keyword,
+.hljs-meta .hljs-string {
+  color: var(--syntax-keyword, var(--default-syntax-keyword));
+}
+
+/* Operators (=, +, -, *, =>, ===, &&, ||, ?: etc.) */
+.hljs-operator {
+  color: var(--syntax-operator, var(--default-syntax-operator));
+  font-weight: 500;
+}
+
+/* Variables, Properties, JSON Keys */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-property {
+  color: var(--syntax-variable, var(--default-syntax-variable));
+}
+
+/* HTML / XML / JSX Tag Names */
+.hljs-tag {
+  color: var(--syntax-tag, var(--default-syntax-tag));
+}
+
+.hljs-name {
+  color: var(--syntax-keyword, var(--default-syntax-keyword));
+  font-weight: 600;
+}
+
+/* Attributes (className, onClick, href, id, etc.) */
+.hljs-attr,
+.hljs-attribute {
+  color: var(--syntax-attr, var(--default-syntax-attr));
+}
+
+/* Punctuation (Brackets, Semicolons, Colons, Commas) */
+.hljs-punctuation {
+  color: var(--syntax-punctuation, var(--default-syntax-punctuation));
+}
+
+/* Regular Expressions */
+.hljs-regexp {
+  color: var(--syntax-regex, var(--default-syntax-regex));
+}
+
+/* Markdown Specific Elements in Code */
+.hljs-bullet {
+  color: var(--syntax-number, var(--default-syntax-number));
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-link {
+  color: var(--syntax-function, var(--default-syntax-function));
+  text-decoration: underline;
+}
+
+.hljs-code {
+  color: var(--syntax-string, var(--default-syntax-string));
+}
