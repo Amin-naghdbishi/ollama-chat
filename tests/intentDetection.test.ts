@@ -27,6 +27,10 @@ const positiveCasesEnglish = [
   "Visualize this scene in neon cyberpunk style",
   "Can you render an image of the robot barista?",
   "A photo of a cozy coffee shop in autumn",
+  "Create a square image at 1024 × 1024 pixels.",
+  "Generate a portrait image at 1024 × 1536.",
+  "Make a landscape image at 1536 × 1024.",
+  "Generate this image at the highest available quality.",
 ];
 
 for (const query of positiveCasesEnglish) {
@@ -48,6 +52,10 @@ const positiveCasesPersian = [
   "این ایده را به عکس تبدیل کن",
   "تصویری از یک گربه فضایی بساز",
   "تصویرش رو بکش",
+  "یک تصویر مربعی با ابعاد ۱۰۲۴ در ۱۰۲۴ بساز.",
+  "یک تصویر عمودی با ابعاد ۱۰۲۴ در ۱۵۳۶ تولید کن.",
+  "تصویر را افقی و با ابعاد ۱۵۳۶ در ۱۰۲۴ بساز.",
+  "این تصویر را با بالاترین کیفیت ممکن تولید کن.",
 ];
 
 for (const query of positiveCasesPersian) {

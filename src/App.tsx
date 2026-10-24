@@ -9,6 +9,7 @@ import {
   OllamaModel,
   LiveGenerationMetrics,
   ModelProfileSettings,
+  ImageModelProfile,
   AIActivityState,
   AIActivityPhase,
   ServicesStatusResponse,
@@ -18,6 +19,10 @@ import { OllamaApi, detectModelCapabilities } from "./services/ollamaApi";
 import { ProviderService } from "./services/providerService";
 import { ComfyApi } from "./services/comfyApi";
 import { detectImageIntent, synthesizeImagePrompt } from "./services/imagePromptService";
+import {
+  resolveImageParameters,
+  getDefaultImageModelProfile,
+} from "./services/imageSettingsService";
 import { FALLBACK_DEMO_MODELS } from "./lib/constants";
 import { pruneMessagesForContext } from "./lib/contextUtils";
 import { ThemeEngine } from "./lib/themeEngine";
@@ -223,6 +228,10 @@ export default function App() {
       }));
     }
   }, [selectedModel]);
+
+  const handleSaveImageModelProfile = useCallback((modelName: string, profile: ImageModelProfile) => {
+    Storage.saveImageModelProfile(modelName, profile);
+  }, []);
 
   // Save state helpers
   useEffect(() => {
@@ -1261,6 +1270,18 @@ export default function App() {
     }
 
     try {
+      // Resolve generation parameters (saved profile defaults + natural language overrides + hardware capability checking)
+      const savedImageProfile =
+        Storage.getImageModelProfile(currentImageModel) ||
+        getDefaultImageModelProfile(currentImageModel);
+
+      const resolvedParams = resolveImageParameters({
+        prompt: userPrompt,
+        ckptName: currentImageModel,
+        savedProfile: savedImageProfile,
+        language: settings.language,
+      });
+
       // Phase 1: Synthesize Prompt using Chat Model and Context
       const enhancedPrompt = await synthesizeImagePrompt({
         userPrompt,
@@ -1285,6 +1306,13 @@ export default function App() {
                           originalRequest: userPrompt,
                           enhancedPrompt,
                           modelUsed: currentImageModel || undefined,
+                          width: resolvedParams.width,
+                          height: resolvedParams.height,
+                          aspectRatio: resolvedParams.aspectRatio,
+                          qualityPreset: resolvedParams.qualityPreset,
+                          steps: resolvedParams.steps,
+                          totalSteps: resolvedParams.steps,
+                          warning: resolvedParams.warning,
                           createdAt: Date.now(),
                         },
                       }
@@ -1295,10 +1323,15 @@ export default function App() {
         )
       );
 
-      // Phase 2: Submit to ComfyUI
+      // Phase 2: Submit to ComfyUI with actual configurable dimensions & sampling steps
       const promptRes = await ComfyApi.queuePrompt({
         checkpoint: currentImageModel,
         prompt: enhancedPrompt,
+        width: resolvedParams.width,
+        height: resolvedParams.height,
+        steps: resolvedParams.steps,
+        cfg: resolvedParams.cfg,
+        negativePrompt: savedImageProfile?.negativePrompt,
         endpoint: settings.comfyUiEndpoint,
       });
 
@@ -1318,9 +1351,14 @@ export default function App() {
                           originalRequest: userPrompt,
                           enhancedPrompt,
                           modelUsed: currentImageModel || undefined,
+                          width: resolvedParams.width,
+                          height: resolvedParams.height,
+                          aspectRatio: resolvedParams.aspectRatio,
+                          qualityPreset: resolvedParams.qualityPreset,
+                          warning: resolvedParams.warning,
                           progress: undefined,
                           step: 0,
-                          totalSteps: 20,
+                          totalSteps: resolvedParams.steps,
                           createdAt: Date.now(),
                         },
                       }
@@ -1335,6 +1373,7 @@ export default function App() {
       const result = await ComfyApi.trackPrompt({
         promptId: promptRes.prompt_id,
         endpoint: settings.comfyUiEndpoint,
+        totalSteps: resolvedParams.steps,
         signal: abortController.signal,
         onProgress: ({ step, totalSteps, percent }) => {
           setConversations((prev) =>
@@ -1377,6 +1416,11 @@ export default function App() {
                           ...m.imageGeneration!,
                           status: "completed",
                           imageUrl: result.imageUrl,
+                          width: resolvedParams.width,
+                          height: resolvedParams.height,
+                          aspectRatio: resolvedParams.aspectRatio,
+                          qualityPreset: resolvedParams.qualityPreset,
+                          warning: resolvedParams.warning,
                           completedAt: Date.now(),
                         },
                       }
@@ -1523,6 +1567,18 @@ export default function App() {
       timestamp: Date.now(),
     };
 
+    // Load saved defaults and resolve one-time explicit overrides
+    const savedImageProfile =
+      Storage.getImageModelProfile(currentImageModel) ||
+      getDefaultImageModelProfile(currentImageModel);
+
+    const resolvedParams = resolveImageParameters({
+      prompt: promptText,
+      ckptName: currentImageModel,
+      savedProfile: savedImageProfile,
+      language: settings.language,
+    });
+
     const assistantMessage: ChatMessage = {
       id: assistantMsgId,
       role: "assistant",
@@ -1533,6 +1589,13 @@ export default function App() {
         originalRequest: promptText,
         enhancedPrompt: promptText, // Exact raw prompt without LLM modification
         modelUsed: currentImageModel || undefined,
+        width: resolvedParams.width,
+        height: resolvedParams.height,
+        aspectRatio: resolvedParams.aspectRatio,
+        qualityPreset: resolvedParams.qualityPreset,
+        steps: resolvedParams.steps,
+        totalSteps: resolvedParams.steps,
+        warning: resolvedParams.warning,
         createdAt: Date.now(),
       },
     };
@@ -1610,7 +1673,12 @@ export default function App() {
 
       const promptRes = await ComfyApi.queuePrompt({
         checkpoint: currentImageModel,
-        prompt: promptText, // Raw exact prompt
+        prompt: promptText, // Raw exact prompt without LLM modification
+        width: resolvedParams.width,
+        height: resolvedParams.height,
+        steps: resolvedParams.steps,
+        cfg: resolvedParams.cfg,
+        negativePrompt: savedImageProfile?.negativePrompt,
         endpoint: settings.comfyUiEndpoint,
       });
 
@@ -1627,8 +1695,13 @@ export default function App() {
                           ...m.imageGeneration!,
                           status: "processing",
                           promptId: promptRes.prompt_id,
+                          width: resolvedParams.width,
+                          height: resolvedParams.height,
+                          aspectRatio: resolvedParams.aspectRatio,
+                          qualityPreset: resolvedParams.qualityPreset,
+                          warning: resolvedParams.warning,
                           step: 0,
-                          totalSteps: 20,
+                          totalSteps: resolvedParams.steps,
                           progress: undefined,
                         },
                       }
@@ -1643,6 +1716,7 @@ export default function App() {
       const result = await ComfyApi.trackPrompt({
         promptId: promptRes.prompt_id,
         endpoint: settings.comfyUiEndpoint,
+        totalSteps: resolvedParams.steps,
         signal: abortController.signal,
         onProgress: ({ step, totalSteps, percent }) => {
           setConversations((prev) =>
@@ -1685,6 +1759,11 @@ export default function App() {
                           ...m.imageGeneration!,
                           status: "completed",
                           imageUrl: result.imageUrl,
+                          width: resolvedParams.width,
+                          height: resolvedParams.height,
+                          aspectRatio: resolvedParams.aspectRatio,
+                          qualityPreset: resolvedParams.qualityPreset,
+                          warning: resolvedParams.warning,
                           completedAt: Date.now(),
                         },
                       }
@@ -2035,9 +2114,11 @@ export default function App() {
           <ModelProfileView
             modelName={activeView.modelName}
             models={models}
+            imageModels={imageModels}
             settings={settings}
             onBack={handleBack}
             onSaveProfile={handleSaveModelProfile}
+            onSaveImageProfile={handleSaveImageModelProfile}
             onOpenModelDetails={(name) => navigateToView({ type: "model-details", modelName: name })}
           />
         )}

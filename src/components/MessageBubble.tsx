@@ -430,119 +430,143 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         ) : !isUser && message.imageGeneration ? (
           /* ==========================================================================
-             IMAGE GENERATION CARD: Clean square with softly animated flowing colors
+             IMAGE GENERATION CARD: Adapts cleanly to actual aspect ratio (Square, Portrait, Landscape)
              ========================================================================== */
-          <div className="flex flex-col items-start space-y-1.5 animate-fadeIn">
-            {/* Minimal Heading Above Square Aligned with Percentage */}
-            <div className="flex items-center justify-between w-72 sm:w-80 px-1 text-xs font-medium text-[var(--text-secondary,#9ba3b2)]">
-              <span>
-                {message.imageGeneration.status === "completed"
-                  ? language === "fa"
-                    ? "تصویر تولید شده"
-                    : "Generated image"
-                  : message.imageGeneration.status === "failed"
-                  ? language === "fa"
-                    ? "خطا در تولید تصویر"
-                    : "Generation failed"
-                  : language === "fa"
-                  ? "در حال تولید تصویر"
-                  : "Generating image"}
-              </span>
+          (() => {
+            const genWidth = message.imageGeneration.width || 512;
+            const genHeight = message.imageGeneration.height || 512;
+            const aspect = genWidth / genHeight;
+            const containerWidthClass =
+              aspect > 1.15
+                ? "w-80 sm:w-[380px] max-w-full"
+                : aspect < 0.85
+                ? "w-60 sm:w-68 max-w-full"
+                : "w-72 sm:w-80 max-w-full";
 
-              {/* Progress Percentage only shown when defensible numerical progress exists */}
-              {hasDefensibleProgress && (
-                <span className="font-mono text-xs font-semibold text-pink-400">
-                  {message.imageGeneration.progress}%
-                </span>
-              )}
-            </div>
+            return (
+              <div className="flex flex-col items-start space-y-1.5 animate-fadeIn">
+                {/* Minimal Heading Above Container Aligned with Percentage */}
+                <div className={`flex items-center justify-between ${containerWidthClass} px-1 text-xs font-medium text-[var(--text-secondary,#9ba3b2)]`}>
+                  <span>
+                    {message.imageGeneration.status === "completed"
+                      ? language === "fa"
+                        ? "تصویر تولید شده"
+                        : "Generated image"
+                      : message.imageGeneration.status === "failed"
+                      ? language === "fa"
+                        ? "خطا در تولید تصویر"
+                        : "Generation failed"
+                      : language === "fa"
+                      ? "در حال تولید تصویر"
+                      : "Generating image"}
+                  </span>
 
-            {/* Stable Square Container (Same dimensions throughout generation & completion) */}
-            <div className="w-72 h-72 sm:w-80 sm:h-80 aspect-square rounded-2xl overflow-hidden relative shadow-md bg-neutral-950">
-              {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl ? (
-                /* Completed State: Real Generated Image In Same Square */
-                <img
-                  src={message.imageGeneration.imageUrl}
-                  alt="Generated visual output"
-                  className="w-full h-full object-cover cursor-pointer rounded-2xl hover:opacity-95 transition-opacity"
-                  onClick={() => setViewerImageUrl(message.imageGeneration!.imageUrl!)}
-                />
-              ) : (
-                /* Generating State: ONLY softly animated, flowing colors (restrained purple, violet, blue & turquoise) */
-                <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#12072b] via-[#080a14] to-[#041a20]">
-                  {/* Floating violet/purple radial glow */}
-                  <div className="absolute -top-10 -left-10 w-52 h-52 rounded-full bg-purple-600/35 blur-3xl animate-flow-1" />
-                  {/* Floating blue radial glow */}
-                  <div className="absolute -bottom-10 -right-10 w-56 h-56 rounded-full bg-blue-600/35 blur-3xl animate-flow-2" />
-                  {/* Floating turquoise radial glow */}
-                  <div className="absolute top-1/4 left-1/4 w-44 h-44 rounded-full bg-cyan-500/25 blur-3xl animate-flow-3" />
-                  {/* Floating deep violet accent */}
-                  <div className="absolute bottom-1/4 left-1/3 w-36 h-36 rounded-full bg-violet-500/30 blur-2xl animate-flow-4" />
+                  {/* Progress Percentage only shown when defensible numerical progress exists */}
+                  {hasDefensibleProgress && (
+                    <span className="font-mono text-xs font-semibold text-[var(--accent-color,#818cf8)]">
+                      {message.imageGeneration.progress}%
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Metadata & Controls Below Square (Small Subdued Text) */}
-            <div className="w-72 sm:w-80 px-1 pt-1 space-y-1 text-[11px] text-[var(--text-muted,#777)] font-mono">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="truncate max-w-[210px] text-[var(--text-secondary,#aaa)] font-medium" title={message.imageGeneration.modelUsed}>
-                  {message.imageGeneration.modelUsed || "ComfyUI Checkpoint"}
-                </span>
-                <span className="text-neutral-500 shrink-0">512 × 512</span>
+                {/* Adaptive Aspect-Ratio Container (Same dimensions throughout generation & completion to prevent shifts) */}
+                <div
+                  className={`${containerWidthClass} rounded-2xl overflow-hidden relative shadow-md bg-neutral-950 flex items-center justify-center`}
+                  style={{ aspectRatio: `${genWidth} / ${genHeight}` }}
+                >
+                  {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl ? (
+                    /* Completed State: Real Generated Image In Same Aspect Ratio */
+                    <img
+                      src={message.imageGeneration.imageUrl}
+                      alt="Generated visual output"
+                      className="w-full h-full object-contain cursor-pointer rounded-2xl hover:opacity-95 transition-opacity"
+                      onClick={() => setViewerImageUrl(message.imageGeneration!.imageUrl!)}
+                    />
+                  ) : (
+                    /* Generating State: ONLY softly animated, flowing colors */
+                    <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-[#12072b] via-[#080a14] to-[#041a20]">
+                      {/* Floating violet/purple radial glow */}
+                      <div className="absolute -top-10 -left-10 w-52 h-52 rounded-full bg-purple-600/35 blur-3xl animate-flow-1" />
+                      {/* Floating blue radial glow */}
+                      <div className="absolute -bottom-10 -right-10 w-56 h-56 rounded-full bg-blue-600/35 blur-3xl animate-flow-2" />
+                      {/* Floating turquoise radial glow */}
+                      <div className="absolute top-1/4 left-1/4 w-44 h-44 rounded-full bg-cyan-500/25 blur-3xl animate-flow-3" />
+                      {/* Floating deep violet accent */}
+                      <div className="absolute bottom-1/4 left-1/3 w-36 h-36 rounded-full bg-violet-500/30 blur-2xl animate-flow-4" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Metadata & Controls Below Container */}
+                <div className={`${containerWidthClass} px-1 pt-1 space-y-1 text-[11px] text-[var(--text-muted,#777)] font-mono`}>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="truncate max-w-[210px] text-[var(--text-secondary,#aaa)] font-medium" title={message.imageGeneration.modelUsed}>
+                      {message.imageGeneration.modelUsed || "ComfyUI Checkpoint"}
+                    </span>
+                    <span className="text-neutral-500 shrink-0">{genWidth} × {genHeight}</span>
+                  </div>
+
+                  {/* Graceful Limitation Explanation / Fallback Notice */}
+                  {message.imageGeneration.warning && (
+                    <div className="p-2 rounded-xl bg-amber-950/30 border border-amber-800/40 text-amber-300 text-[10.5px] font-sans leading-relaxed">
+                      {message.imageGeneration.warning}
+                    </div>
+                  )}
+
+                  {message.imageGeneration.enhancedPrompt && (
+                    <p className="text-[11px] text-[var(--text-muted,#888)] italic line-clamp-2 leading-relaxed">
+                      {message.imageGeneration.enhancedPrompt}
+                    </p>
+                  )}
+
+                  {/* Action Buttons for Completed State */}
+                  {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl && (
+                    <div className="flex items-center gap-2 pt-1 font-sans">
+                      <button
+                        onClick={() =>
+                          handleDownloadImage(
+                            message.imageGeneration!.imageUrl!,
+                            `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${Date.now()}.png`
+                          )
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] text-[var(--text-primary,#eee)] text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </button>
+                      {onRetryImage && (
+                        <button
+                          onClick={() => onRetryImage(message.id)}
+                          className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] text-[var(--text-primary,#eee)] text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                        >
+                          <RotateCw className="w-3.5 h-3.5" />
+                          <span>Retry</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Honest Failure Notice & Retry */}
+                  {message.imageGeneration.status === "failed" && (
+                    <div className="pt-1 text-red-400 space-y-1 font-sans">
+                      <p className="text-[11.5px] leading-relaxed">
+                        {message.imageGeneration.error || "Generation failed. Verify ComfyUI connection and selected checkpoint."}
+                      </p>
+                      {onRetryImage && (
+                        <button
+                          onClick={() => onRetryImage(message.id)}
+                          className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-200 text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                        >
+                          <RotateCw className="w-3.5 h-3.5" />
+                          <span>Retry generation</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {message.imageGeneration.enhancedPrompt && (
-                <p className="text-[11px] text-[var(--text-muted,#888)] italic line-clamp-2 leading-relaxed">
-                  {message.imageGeneration.enhancedPrompt}
-                </p>
-              )}
-
-              {/* Action Buttons for Completed State */}
-              {message.imageGeneration.status === "completed" && message.imageGeneration.imageUrl && (
-                <div className="flex items-center gap-2 pt-1 font-sans">
-                  <button
-                    onClick={() =>
-                      handleDownloadImage(
-                        message.imageGeneration!.imageUrl!,
-                        `comfyui-${message.imageGeneration?.modelUsed || "gen"}-${Date.now()}.png`
-                      )
-                    }
-                    className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] text-[var(--text-primary,#eee)] text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download</span>
-                  </button>
-                  {onRetryImage && (
-                    <button
-                      onClick={() => onRetryImage(message.id)}
-                      className="px-2.5 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] text-[var(--text-primary,#eee)] text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
-                    >
-                      <RotateCw className="w-3.5 h-3.5" />
-                      <span>Retry</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Honest Failure Notice & Retry */}
-              {message.imageGeneration.status === "failed" && (
-                <div className="pt-1 text-red-400 space-y-1 font-sans">
-                  <p className="text-[11.5px] leading-relaxed">
-                    {message.imageGeneration.error || "Generation failed. Verify ComfyUI connection and selected checkpoint."}
-                  </p>
-                  {onRetryImage && (
-                    <button
-                      onClick={() => onRetryImage(message.id)}
-                      className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-200 text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                    >
-                      <RotateCw className="w-3.5 h-3.5" />
-                      <span>Retry generation</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+            );
+          })()
         ) : (
           /* Regular Assistant Text Response */
           <div className="w-full text-[var(--text-primary,#f3f4f6)] text-[14.5px] sm:text-[15px] leading-relaxed space-y-3">

@@ -341,14 +341,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             }}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] hover:text-white transition-colors cursor-pointer text-left rtl:text-right"
           >
-            <div className="w-6 h-6 rounded-md bg-pink-950/60 border border-pink-800/50 flex items-center justify-center text-pink-400 shrink-0">
+            <div className="w-6 h-6 rounded-md bg-zinc-800/80 border border-zinc-700/60 flex items-center justify-center text-zinc-300 shrink-0">
               <ImageIcon className="w-3.5 h-3.5" />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="font-medium text-xs leading-tight text-pink-300 font-semibold">{t("imageGeneration")}</span>
-              <span className="text-[10px] text-pink-400/80 truncate">
-                {language === "fa" ? "ارسال پرامپت مستقیم به ComfyUI" : "Direct image generation via ComfyUI"}
-              </span>
+              <span className="font-medium text-xs leading-tight">{t("generateImage")}</span>
             </div>
           </button>
 
@@ -530,13 +527,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
         {/* Direct Image Mode Active Indicator */}
         {isDirectImageMode && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 mb-2 rounded-xl bg-pink-950/70 border border-pink-700/60 text-pink-300 text-xs font-mono shadow-xs w-fit animate-fadeIn">
-            <ImageIcon className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-            <span>{language === "fa" ? "حالت تولید مستقیم تصویر (بدون مدل متنی)" : "Direct Image Mode (bypasses LLM)"}</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 mb-2 rounded-xl bg-[var(--bg-secondary,#1c1e27)] border border-[var(--border-color,#282a36)] text-[var(--text-primary,#e6e9f0)] text-xs font-mono shadow-xs w-fit animate-fadeIn">
+            <ImageIcon className="w-3.5 h-3.5 text-[var(--text-secondary,#9ba3b2)] shrink-0" />
+            <span>{t("generateImage")}</span>
             <button
               type="button"
               onClick={() => setIsDirectImageMode(false)}
-              className="p-0.5 hover:text-white rounded transition-colors cursor-pointer ml-1 text-pink-400 hover:text-pink-200"
+              className="p-0.5 hover:text-white rounded transition-colors cursor-pointer ml-1 text-[var(--text-muted,#777)] hover:text-[var(--text-primary,#e6e9f0)]"
               title="Cancel direct image mode"
             >
               <X className="w-3 h-3" />

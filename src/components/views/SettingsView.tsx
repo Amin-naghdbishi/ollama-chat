@@ -804,7 +804,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div className="p-4 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-pink-950/50 border border-pink-800/40 flex items-center justify-center text-pink-400 shrink-0">
+                      <div className="w-7 h-7 rounded-lg bg-[var(--accent-color,#818cf8)]/15 border border-[var(--accent-color,#818cf8)]/30 flex items-center justify-center text-[var(--accent-color,#818cf8)] shrink-0">
                         <ImageIcon className="w-4 h-4" />
                       </div>
                       <div>
@@ -835,7 +835,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) => setFormData({ ...formData, imagePromptInstructions: e.target.value })}
                     onBlur={() => handleAutoSave(formData)}
                     rows={8}
-                    className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] text-xs p-3 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-pink-500/70 leading-relaxed font-mono"
+                    className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] text-xs p-3 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] leading-relaxed font-mono"
                     placeholder="Instructions for converting Persian and English requests into ComfyUI prompts..."
                   />
 

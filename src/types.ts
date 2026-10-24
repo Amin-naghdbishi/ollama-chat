@@ -107,18 +107,39 @@ export interface FileAttachment {
   isImage: boolean;
 }
 
+export type ImageAspectRatio = "square" | "portrait" | "landscape";
+export type ImageQualityPreset = "standard" | "high" | "highest";
+
+export interface ImageModelProfile {
+  width: number;
+  height: number;
+  aspectRatio: ImageAspectRatio;
+  qualityPreset: ImageQualityPreset;
+  steps: number;
+  cfg: number;
+  sampler?: string;
+  scheduler?: string;
+  negativePrompt?: string;
+}
+
 export interface ImageGenerationData {
   promptId?: string;
   status: "prompting" | "queued" | "processing" | "completed" | "failed" | "interrupted";
   enhancedPrompt?: string;
   originalRequest?: string;
   modelUsed?: string; // Selected ComfyUI checkpoint
+  width?: number;
+  height?: number;
+  aspectRatio?: ImageAspectRatio;
+  qualityPreset?: ImageQualityPreset;
+  steps?: number;
   progress?: number; // 0 to 100 percentage
   step?: number;
   totalSteps?: number;
   imageUrl?: string;
   seed?: number;
   error?: string;
+  warning?: string;
   createdAt: number;
   completedAt?: number;
 }

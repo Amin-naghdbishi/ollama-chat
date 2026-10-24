@@ -1,6 +1,19 @@
 import { ChatMessage, AppSettings } from "../types";
 import { ProviderService } from "./providerService";
 import { DEFAULT_IMAGE_PROMPT_INSTRUCTIONS } from "../lib/storage";
+import {
+  extractImageParametersFromPrompt,
+  resolveImageParameters,
+  isSdxlCheckpoint,
+  getDefaultImageModelProfile,
+} from "./imageSettingsService";
+
+export {
+  extractImageParametersFromPrompt,
+  resolveImageParameters,
+  isSdxlCheckpoint,
+  getDefaultImageModelProfile,
+};
 
 /**
  * Detects explicit image generation requests in Persian and English while avoiding false positives
@@ -41,8 +54,8 @@ export function detectImageIntent(message: string): { isImageRequest: boolean; e
     /(یک\s*)?(عکس|تصویر|نقاشی|طرح|پرتره).*?(بساز|تولید\s*کن|بکش|رسم\s*کن|طراحی\s*کن|خلق\s*کن)/,
     // «برام تصویر تولید کن», «برای من عکس بساز»
     /(برام|برای\s*من|لطفاً|لطفا).*?(عکس|تصویر|نقاشی|طرح|پرتره).*?(تولید\s*کن|بساز|بکش|رسم\s*کن|طراحی\s*کن)/,
-    // «این صحنه رو نقاشی کن», «صحنه رو نقاشی کن», «این رو نقاشی کن»
-    /(این\s*صحنه|صحنه|این|آن)\s*(رو|را)?.*?(نقاشی\s*کن|به\s*تصویر\s*بکش|تصویرسازی\s*کن|طراحی\s*کن)/,
+    // «این صحنه رو نقاشی کن», «صحنه رو نقاشی کن», «این رو نقاشی کن», «این تصویر را با بالاترین کیفیت ممکن تولید کن»
+    /(این\s*صحنه|صحنه|این|آن|این\s*تصویر|تصویر)\s*(رو|را)?.*?(تولید\s*کن|بساز|نقاشی\s*کن|به\s*تصویر\s*بکش|تصویرسازی\s*کن|طراحی\s*کن)/,
     // «از این ایده یک تصویر بساز», «از این صحنه عکس بساز», «از این ایده عکس تولید کن»
     /از\s*(این\s*ایده|این\s*صحنه|این\s*موضوع|این|آن|مکالمه|گفتگو|صحبتامون).*?(تصویر|عکس|نقاشی).*?(بساز|تولید\s*کن|بکش|طراحی\s*کن)/,
     // «میخوام این رو به تصویر تبدیل کنی», «این را به عکس تبدیل کن»
@@ -51,6 +64,8 @@ export function detectImageIntent(message: string): { isImageRequest: boolean; e
     /(تصویر|عکس|نقاشی|طرح|پرتره|تصویری|عکسی|نقاشی‌ای)\s*از\s+.+/,
     // Direct conversational Persian requests: «ازش عکس بساز», «تصویرش رو بساز», «نقاشیش کن»
     /(ازش|تصویرش|عکسش|نقاشیش)\s*(رو|را)?\s*(بساز|بکش|تولید\s*کن|کن)/,
+    // «تصویر را افقی و با ابعاد ... بساز»
+    /(تصویر|عکس).*?(را|رو)?.*?(افقی|عمودی|مربعی).*?(بساز|تولید\s*کن|بکش)/,
     // «تصویرسازی کن از ...»
     /تصویرسازی\s*کن/,
   ];
@@ -63,8 +78,8 @@ export function detectImageIntent(message: string): { isImageRequest: boolean; e
 
   // 3. English positive patterns
   const englishPositivePatterns = [
-    // "create an image", "generate an image", "draw an image", "make an image", "render an image", "turn this into an image"
-    /\b(create|generate|make|draw|paint|render|produce)\s+(an?|the)?\s*(new\s+)?(image|picture|photo|photograph|portrait|artwork|illustration|visual|rendering|graphic)\b/i,
+    // "create an image", "generate an image", "draw an image", "make an image", "render an image", "turn this into an image", "create a square image", "generate a portrait image"
+    /\b(create|generate|make|draw|paint|render|produce)\s+(an?|the|this)?\s*(new\s+|square\s+|portrait\s+|landscape\s+|vertical\s+|horizontal\s+)?(image|picture|photo|photograph|portrait|artwork|illustration|visual|rendering|graphic)\b/i,
     // "turn this idea into an illustration", "turn this into an image/picture"
     /\bturn\s+(this|it|that|this\s+idea|this\s+concept|our\s+discussion)\s+into\s+(an?|the)?\s*(image|picture|photo|illustration|drawing|artwork|visual)\b/i,
     // "draw this scene", "paint this scene", "illustrate this scene"
@@ -106,6 +121,10 @@ export async function synthesizeImagePrompt(params: {
 }): Promise<string> {
   const { userPrompt, conversationHistory, chatModel, settings, signal } = params;
 
+  // Clean explicit technical dimension & quality tokens from userPrompt for prompt synthesis
+  const extracted = extractImageParametersFromPrompt(userPrompt);
+  const promptSubject = extracted.cleanedPrompt.trim() || userPrompt;
+
   // Filter last 10 messages for relevant conversational context
   const recentHistory = conversationHistory
     .filter((m) => m.content && !m.imageGeneration)
@@ -123,7 +142,7 @@ Relevant conversation history:
 ${contextSnippet ? contextSnippet : "(No prior conversation)"}
 
 User's generation request:
-"${userPrompt}"
+"${promptSubject}"
 
 Task:
 Produce a single, comprehensive text-to-image prompt based on the instructions and context above. Output ONLY the descriptive prompt text in English without commentary.`;
@@ -155,7 +174,7 @@ Produce a single, comprehensive text-to-image prompt based on the instructions a
   }
 
   // Fallback: extract context keywords and clean user query
-  let fallbackPrompt = userPrompt
+  let fallbackPrompt = (extracted.cleanedPrompt.trim() || userPrompt)
     // English removals
     .replace(/\b(based\s+on\s+everything\s+we('?ve|\s+have)?\s+discussed(\s+so\s+far)?,?\s*)/i, "")
     .replace(/\b(create|generate|make|draw|paint|render)\s+(an?|the)?\s*(image|picture|photo|illustration)(\s+of)?\s*/i, "")

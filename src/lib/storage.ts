@@ -10,6 +10,7 @@ import {
   ContextCompressionEvent,
   MemoryAuditLogEntry,
   StressTestResult,
+  ImageModelProfile,
 } from "../types";
 import { CustomTheme, ThemeEngine } from "./themeEngine";
 import { DEFAULT_COMPRESSION_CONFIG } from "./contextCompressor";
@@ -22,6 +23,7 @@ const STORAGE_KEYS = {
   SELECTED_IMAGE_MODEL: "ollama_chat_selected_image_model",
   COMFY_ENDPOINT: "ollama_chat_comfy_endpoint",
   MODEL_PROFILES: "ollama_chat_model_profiles",
+  IMAGE_MODEL_PROFILES: "ollama_chat_image_model_profiles",
   FAVORITE_MODELS: "ollama_chat_favorite_models",
   FOLDERS: "ollama_chat_folders",
   CUSTOM_THEMES: "ollama_chat_custom_themes_list",
@@ -268,6 +270,37 @@ export const Storage = {
       localStorage.setItem(STORAGE_KEYS.MODEL_PROFILES, JSON.stringify(profiles));
     } catch (e) {
       console.error("Failed to save model profile:", e);
+    }
+  },
+
+  getImageModelProfile(modelName: string): ImageModelProfile | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.IMAGE_MODEL_PROFILES);
+      if (!raw) return null;
+      const profiles = JSON.parse(raw);
+      return profiles[modelName] || null;
+    } catch {
+      return null;
+    }
+  },
+
+  saveImageModelProfile(modelName: string, profile: ImageModelProfile): void {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.IMAGE_MODEL_PROFILES);
+      const profiles = raw ? JSON.parse(raw) : {};
+      profiles[modelName] = profile;
+      localStorage.setItem(STORAGE_KEYS.IMAGE_MODEL_PROFILES, JSON.stringify(profiles));
+    } catch (e) {
+      console.error("Failed to save image model profile:", e);
+    }
+  },
+
+  getAllImageModelProfiles(): Record<string, ImageModelProfile> {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.IMAGE_MODEL_PROFILES);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
     }
   },
 

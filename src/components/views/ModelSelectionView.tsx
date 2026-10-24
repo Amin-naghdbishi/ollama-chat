@@ -22,6 +22,7 @@ import { OllamaModel, AppSettings, ServiceState } from "../../types";
 import { formatBytes } from "../../lib/formatters";
 import { detectModelCapabilities } from "../../services/ollamaApi";
 import { Storage } from "../../lib/storage";
+import { getDefaultImageModelProfile } from "../../services/imageSettingsService";
 
 interface ModelSelectionViewProps {
   models: OllamaModel[];
@@ -197,11 +198,11 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
                 activeTab === "image"
-                  ? "bg-pink-950/60 text-pink-200 border border-pink-700/50 shadow-xs"
-                  : "text-[var(--text-muted,#888)] hover:text-pink-300"
+                  ? "bg-[var(--bg-surface,#232530)] text-[var(--text-primary,#eee)] shadow-xs"
+                  : "text-[var(--text-muted,#888)] hover:text-[var(--text-primary,#eee)]"
               }`}
             >
-              <ImageIcon className="w-3.5 h-3.5 text-pink-400" />
+              <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)]" />
               <span>Image Models ({imageModels.length})</span>
             </button>
           </div>
@@ -543,7 +544,7 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter ComfyUI checkpoints (e.g. DreamShaper_8, sd_xl, v1-5)..."
-                  className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-pink-500/70 font-sans"
+                  className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-10 pr-10 py-2.5 rounded-xl border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)] font-sans"
                 />
                 {searchQuery && (
                   <button
@@ -555,32 +556,71 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                 )}
               </div>
 
+              {/* Active Image Checkpoint Profile Banner */}
+              {selectedImageModel && (
+                (() => {
+                  const activeProf = Storage.getImageModelProfile(selectedImageModel) || getDefaultImageModelProfile(selectedImageModel);
+                  return (
+                    <div className="px-4 py-3 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-[var(--accent-color,#818cf8)]/15 border border-[var(--accent-color,#818cf8)]/30 flex items-center justify-center text-[var(--accent-color,#818cf8)] shrink-0">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-[var(--text-muted,#888)]">Active Model Profile:</span>
+                            <span className="font-mono text-xs font-bold text-[var(--text-primary,#eee)] truncate">{selectedImageModel}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono text-[var(--text-secondary,#aaa)]">
+                            <span>{activeProf.width} × {activeProf.height} px</span>
+                            <span>•</span>
+                            <span className="capitalize">{activeProf.aspectRatio}</span>
+                            <span>•</span>
+                            <span className="capitalize">{activeProf.qualityPreset} quality</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => onOpenModelProfile(selectedImageModel)}
+                        className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-primary,#e6e9f0)] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                      >
+                        <SlidersHorizontal className="w-3 h-3 text-[var(--accent-color,#818cf8)]" />
+                        <span>Configure Profile</span>
+                      </button>
+                    </div>
+                  );
+                })()
+              )}
+
               {/* Checkpoints List */}
               <div className="space-y-2">
                 {isLoadingImageModels ? (
                   <div className="py-12 flex flex-col items-center justify-center text-xs text-[var(--text-muted,#888)] gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin text-pink-400" />
+                    <Loader2 className="w-5 h-5 animate-spin text-[var(--accent-color,#818cf8)]" />
                     <span>Discovering ComfyUI checkpoints...</span>
                   </div>
                 ) : filteredImageModels.length > 0 ? (
                   filteredImageModels.map((ckpt) => {
                     const isSelected = ckpt === selectedImageModel;
+                    const ckptProf = Storage.getImageModelProfile(ckpt) || getDefaultImageModelProfile(ckpt);
                     return (
                       <div
                         key={ckpt}
                         onClick={() => onSelectImageModel?.(ckpt)}
                         className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                           isSelected
-                            ? "bg-pink-950/30 border-pink-700/60 shadow-md"
-                            : "bg-[var(--bg-surface,#1f212a)] border-[var(--border-color,#282a36)] hover:border-pink-500/50"
+                            ? "bg-[var(--bg-secondary,#191a21)] border-[var(--accent-color,#818cf8)] ring-1 ring-[var(--accent-color,#818cf8)]/30 shadow-md"
+                            : "bg-[var(--bg-surface,#1f212a)] border-[var(--border-color,#282a36)] hover:border-[var(--text-muted,#6b7280)]"
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 mr-3">
                           <div
-                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
                               isSelected
-                                ? "bg-pink-900/50 text-pink-300"
-                                : "bg-[var(--bg-primary,#16171d)] text-[var(--text-muted,#888)]"
+                                ? "bg-[var(--accent-color,#818cf8)]/15 border-[var(--accent-color,#818cf8)] text-[var(--accent-color,#818cf8)]"
+                                : "bg-[var(--bg-primary,#16171d)] border-[var(--border-color,#282a36)] text-[var(--text-muted,#888)]"
                             }`}
                           >
                             <ImageIcon className="w-4 h-4" />
@@ -590,26 +630,35 @@ export const ModelSelectionView: React.FC<ModelSelectionViewProps> = ({
                               {ckpt}
                             </span>
                             <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-muted,#777)] font-mono">
-                              <span>ComfyUI Checkpoint</span>
+                              <span>{ckptProf.width} × {ckptProf.height}</span>
                               <span>•</span>
-                              <span>Checkpoint Loader Simple</span>
+                              <span className="capitalize">{ckptProf.aspectRatio}</span>
+                              <span>•</span>
+                              <span className="capitalize">{ckptProf.qualityPreset}</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => onOpenModelProfile(ckpt)}
+                            className="px-2.5 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                            title="Configure image generation settings & defaults"
+                          >
+                            <SlidersHorizontal className="w-3 h-3" />
+                            <span>Profile</span>
+                          </button>
+
                           {isSelected ? (
-                            <span className="px-3 py-1.5 rounded-xl bg-pink-900/60 border border-pink-700 text-pink-200 text-xs font-semibold flex items-center gap-1.5">
-                              <Check className="w-3.5 h-3.5 text-pink-400" />
+                            <span className="px-3 py-1.5 rounded-xl bg-[var(--accent-color,#818cf8)] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                              <Check className="w-3.5 h-3.5" />
                               <span>Active</span>
                             </span>
                           ) : (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSelectImageModel?.(ckpt);
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-pink-900/50 border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer font-medium"
+                              onClick={() => onSelectImageModel?.(ckpt)}
+                              className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer font-medium"
                             >
                               Select
                             </button>
