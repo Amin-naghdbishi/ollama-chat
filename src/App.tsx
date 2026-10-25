@@ -42,7 +42,6 @@ import { ModelSelectionView } from "./components/views/ModelSelectionView";
 import { ModelDetailsView } from "./components/views/ModelDetailsView";
 import { ModelProfileView } from "./components/views/ModelProfileView";
 import { TroubleshooterView } from "./components/views/TroubleshooterView";
-import { CustomThemeBuilderView } from "./components/views/CustomThemeBuilderView";
 import { ContextExplorerView } from "./components/views/ContextExplorerView";
 import { ContextToolsModal } from "./components/ContextToolsModal";
 import { MemoryService } from "./services/memoryService";
@@ -54,7 +53,6 @@ export type ActiveView =
   | { type: "model-details"; modelName: string }
   | { type: "model-profile"; modelName: string }
   | { type: "troubleshooter" }
-  | { type: "theme-builder"; editingThemeId?: string; baseThemeId?: string }
   | { type: "context-explorer" };
 
 export default function App() {
@@ -1530,17 +1528,22 @@ export default function App() {
   };
 
   /**
-   * Complete Image Editing Workflow:
-   * Supports img2img and inpainting via ComfyUI, with mask support, reference images,
-   * natural-language instruction preservation in EN/FA, and media storage persistence.
+   * Natural-Language Image Editing Workflow (through Chat Replies):
+   * 1. Creates an edit request associated with the exact image being edited.
+   * 2. Adds a new user chat message containing the edit instruction and a reply/reference to the source image.
+   * 3. Adds an assistant response message to show progress and receive the edited output.
+   * 4. Uploads source image to ComfyUI, translates/synthesizes prompt contextually.
+   * 5. Runs ComfyUI img2img with calibrated denoise (preserving subject & structure).
+   * 6. Tracks real-time generation progress and displays resulting image as assistant's response.
+   * 7. Preserves source image and previous versions in version history.
    */
   const handleApplyImageEdit = async (params: {
-    messageId: string;
+    sourceMessageId?: string;
     sourceImageUrl: string;
+    sourceVersionId?: string;
+    sourceTitle?: string;
     editInstruction: string;
-    maskDataUrl?: string;
     referenceImages?: FileAttachment[];
-    toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt";
   }): Promise<string | null> => {
     let currentImageModel = selectedImageModel || (imageModels.length > 0 ? imageModels[0] : null);
     if (!currentImageModel && imageModels.length > 0) {
@@ -1557,107 +1560,51 @@ export default function App() {
       );
     }
 
-    // 1. Upload source image to ComfyUI
-    let sourceUpload: { name: string };
-    try {
-      sourceUpload = await ComfyApi.uploadImage({
-        imageDataUrl: params.sourceImageUrl,
-        endpoint: settings.comfyUiEndpoint,
-      });
-    } catch (err: any) {
-      throw new Error(`Failed to upload source image to ComfyUI: ${err.message || err}`);
-    }
+    const currentConv = conversations.find((c) => c.id === activeConversationId);
+    const sourceMsg = currentConv?.messages.find((m) => m.id === params.sourceMessageId);
+    const sourceContext =
+      sourceMsg?.imageGeneration?.originalRequest ||
+      sourceMsg?.imageGeneration?.enhancedPrompt ||
+      sourceMsg?.content;
 
-    // 2. Upload mask if present (for inpainting)
-    let maskUpload: { name: string } | undefined = undefined;
-    if (params.maskDataUrl) {
-      try {
-        maskUpload = await ComfyApi.uploadImage({
-          imageDataUrl: params.maskDataUrl,
-          endpoint: settings.comfyUiEndpoint,
-        });
-      } catch (err: any) {
-        console.warn("Mask upload error, falling back to full img2img:", err);
-      }
-    }
+    // 1. Create User Message with Reply/Reference to Source Image
+    const userMessageId = `msg-user-edit-${Date.now()}`;
+    const userMessage: ChatMessage = {
+      id: userMessageId,
+      role: "user",
+      content: params.editInstruction,
+      imageEditReference: {
+        sourceImageUrl: params.sourceImageUrl,
+        sourceMessageId: params.sourceMessageId,
+        sourceVersionId: params.sourceVersionId,
+        sourceTitle: params.sourceTitle || "Source visual",
+      },
+      timestamp: Date.now(),
+    };
 
-    // 3. Multi-image references:
-    let finalPrompt = params.editInstruction.trim();
-    if (params.referenceImages && params.referenceImages.length > 0) {
-      const refNames = params.referenceImages.map((r) => r.name).join(", ");
-      finalPrompt = `${finalPrompt}. Incorporate visual features and styling from reference image (${refNames}).`;
-    }
+    // 2. Create Assistant Message in Queued State
+    const assistantMessageId = `msg-asst-edit-${Date.now() + 1}`;
+    const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      imageGeneration: {
+        status: "queued",
+        originalRequest: params.editInstruction,
+        modelUsed: currentImageModel,
+        createdAt: Date.now(),
+      },
+      timestamp: Date.now() + 1,
+    };
 
-    // 4. Translate or refine instruction if Persian
-    if (isRtlText(finalPrompt) || settings.language === "fa") {
-      try {
-        const translated = await synthesizeImageEditPrompt({
-          editInstruction: finalPrompt,
-          chatModel: selectedModel || "llama3",
-          settings,
-        });
-        if (translated && translated.trim()) {
-          finalPrompt = translated.trim();
-        }
-      } catch (e) {
-        console.warn("Edit prompt translation fallback:", e);
-      }
-    }
-
-    // 5. Submit to ComfyUI
-    const promptRes = await ComfyApi.queueImg2ImgPrompt({
-      checkpoint: currentImageModel,
-      prompt: finalPrompt,
-      sourceImageFilename: sourceUpload.name,
-      maskImageFilename: maskUpload?.name,
-      denoise: maskUpload ? 0.85 : 0.70,
-      endpoint: settings.comfyUiEndpoint,
-    });
-
-    // 6. Track Prompt
-    const result = await ComfyApi.trackPrompt({
-      promptId: promptRes.prompt_id,
-      endpoint: settings.comfyUiEndpoint,
-    });
-
-    // 7. Persist to Media Storage
-    const saved = await mediaService.saveMedia(result.imageUrl, result.filename, {
-      tool: params.toolUsed || "edit-prompt",
-      sourceImageUrl: params.sourceImageUrl,
-      editInstruction: params.editInstruction,
-      model: currentImageModel,
-      messageId: params.messageId,
-      conversationId: activeConversationId,
-    });
-
-    // 8. Update conversation state with the new image version
+    // Append both messages to the active conversation immediately
     setConversations((prev) => {
       const updated = prev.map((c) =>
         c.id === activeConversationId
           ? {
               ...c,
               updatedAt: Date.now(),
-              messages: c.messages.map((m) =>
-                m.id === params.messageId
-                  ? {
-                      ...m,
-                      imageGeneration: m.imageGeneration
-                        ? {
-                            ...m.imageGeneration,
-                            imageUrl: saved.url,
-                            status: "completed" as const,
-                            completedAt: Date.now(),
-                          }
-                        : {
-                            status: "completed" as const,
-                            imageUrl: saved.url,
-                            createdAt: Date.now(),
-                            completedAt: Date.now(),
-                            originalRequest: params.editInstruction,
-                          },
-                    }
-                  : m
-              ),
+              messages: [...c.messages, userMessage, assistantMessage],
             }
           : c
       );
@@ -1665,7 +1612,172 @@ export default function App() {
       return updated;
     });
 
-    return saved.url;
+    try {
+      // 3. Upload source image to ComfyUI
+      const sourceUpload = await ComfyApi.uploadImage({
+        imageDataUrl: params.sourceImageUrl,
+        endpoint: settings.comfyUiEndpoint,
+      });
+
+      // 4. Synthesize Prompt Contextually
+      let finalPrompt = params.editInstruction.trim();
+      if (params.referenceImages && params.referenceImages.length > 0) {
+        const refNames = params.referenceImages.map((r) => r.name).join(", ");
+        finalPrompt = `${finalPrompt}. Incorporate visual styling from reference (${refNames}).`;
+      }
+
+      const synthesized = await synthesizeImageEditPrompt({
+        editInstruction: finalPrompt,
+        chatModel: selectedModel || "llama3",
+        settings,
+        sourceContext,
+      });
+      if (synthesized && synthesized.trim()) {
+        finalPrompt = synthesized.trim();
+      }
+
+      // Update state to processing
+      setConversations((prev) => {
+        const updated = prev.map((c) =>
+          c.id === activeConversationId
+            ? {
+                ...c,
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: m.imageGeneration
+                          ? { ...m.imageGeneration, status: "processing" as const, enhancedPrompt: finalPrompt }
+                          : undefined,
+                      }
+                    : m
+                ),
+              }
+            : c
+        );
+        Storage.saveConversations(updated);
+        return updated;
+      });
+
+      // 5. Submit to ComfyUI
+      const promptRes = await ComfyApi.queueImg2ImgPrompt({
+        checkpoint: currentImageModel,
+        prompt: finalPrompt,
+        sourceImageFilename: sourceUpload.name,
+        denoise: 0.52,
+        endpoint: settings.comfyUiEndpoint,
+      });
+
+      // 6. Track Prompt
+      const result = await ComfyApi.trackPrompt({
+        promptId: promptRes.prompt_id,
+        endpoint: settings.comfyUiEndpoint,
+        onProgress: (p) => {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === activeConversationId
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId && m.imageGeneration
+                        ? {
+                            ...m,
+                            imageGeneration: {
+                              ...m.imageGeneration,
+                              step: p.step,
+                              totalSteps: p.totalSteps,
+                              progress: Math.round((p.step / p.totalSteps) * 100),
+                            },
+                          }
+                        : m
+                    ),
+                  }
+                : c
+            )
+          );
+        },
+      });
+
+      // 7. Persist Result to Media Storage
+      const rootId = params.sourceMessageId || userMessageId;
+      const saved = await mediaService.saveMedia(result.imageUrl, result.filename, {
+        tool: "edit-prompt",
+        sourceImageUrl: params.sourceImageUrl,
+        sourceVersionId: params.sourceVersionId,
+        editInstruction: params.editInstruction,
+        model: currentImageModel,
+        messageId: assistantMessageId,
+        conversationId: activeConversationId,
+      });
+
+      // Update Version History
+      mediaService.addVersion(rootId, {
+        imageUrl: saved.url,
+        editInstruction: params.editInstruction,
+        parentVersionId: params.sourceVersionId,
+        toolUsed: "edit-prompt",
+      });
+
+      // 8. Update Assistant Message to Completed
+      setConversations((prev) => {
+        const updated = prev.map((c) =>
+          c.id === activeConversationId
+            ? {
+                ...c,
+                updatedAt: Date.now(),
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: m.imageGeneration
+                          ? {
+                              ...m.imageGeneration,
+                              status: "completed" as const,
+                              imageUrl: saved.url,
+                              completedAt: Date.now(),
+                            }
+                          : undefined,
+                      }
+                    : m
+                ),
+              }
+            : c
+        );
+        Storage.saveConversations(updated);
+        return updated;
+      });
+
+      return saved.url;
+    } catch (err: any) {
+      // Mark assistant message as failed with honest error
+      setConversations((prev) => {
+        const updated = prev.map((c) =>
+          c.id === activeConversationId
+            ? {
+                ...c,
+                updatedAt: Date.now(),
+                messages: c.messages.map((m) =>
+                  m.id === assistantMessageId
+                    ? {
+                        ...m,
+                        imageGeneration: m.imageGeneration
+                          ? {
+                              ...m.imageGeneration,
+                              status: "failed" as const,
+                              error: err.message || String(err),
+                            }
+                          : undefined,
+                      }
+                    : m
+                ),
+              }
+            : c
+        );
+        Storage.saveConversations(updated);
+        return updated;
+      });
+      throw err;
+    }
   };
 
   /**
@@ -2010,7 +2122,10 @@ export default function App() {
       />
 
       {/* Main Workspace Container */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-primary,#131418)]">
+      <div
+        className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-primary,#131418)]"
+        style={{ backgroundImage: "var(--chat-bg-image)", backgroundSize: "cover", backgroundPosition: "center" }}
+      >
         {activeView.type === "chat" && (
           <>
             {/* Top Header */}
@@ -2190,29 +2305,9 @@ export default function App() {
             onRefreshConnection={checkHealthAndModels}
             onOpenModelDetails={(name) => navigateToView({ type: "model-details", modelName: name })}
             onOpenModelProfile={(name) => navigateToView({ type: "model-profile", modelName: name })}
-            onOpenThemeBuilder={(themeId, baseThemeId) =>
-              navigateToView({ type: "theme-builder", editingThemeId: themeId, baseThemeId })
-            }
             onClearAllData={handleClearAllData}
             conversations={conversations}
             activeConversationId={activeConversationId}
-          />
-        )}
-
-        {activeView.type === "theme-builder" && (
-          <CustomThemeBuilderView
-            initialThemeId={activeView.editingThemeId}
-            baseThemeId={activeView.baseThemeId}
-            language={settings.language}
-            onBack={handleBack}
-            onSaveTheme={(savedTheme) => {
-              ThemeEngine.saveCustomTheme(savedTheme);
-              const updated = { ...settings, theme: savedTheme.id };
-              setSettings(updated);
-              Storage.saveSettings(updated);
-              ThemeEngine.applyTheme(savedTheme.id);
-              handleBack();
-            }}
           />
         )}
 

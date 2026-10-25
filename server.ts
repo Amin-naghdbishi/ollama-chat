@@ -223,8 +223,9 @@ async function startServer() {
     const queryString = qIndex !== -1 ? req.originalUrl.slice(qIndex) : "";
 
     const headers: Record<string, string> = {};
-    if (req.headers["content-type"]) {
-      headers["Content-Type"] = req.headers["content-type"] as string;
+    const reqContentType = req.headers["content-type"] as string;
+    if (reqContentType) {
+      headers["Content-Type"] = reqContentType;
     }
 
     const fetchOptions: RequestInit = {
@@ -232,8 +233,17 @@ async function startServer() {
       headers,
     };
 
-    if (["POST", "PUT", "PATCH"].includes(req.method.toUpperCase()) && req.body) {
-      fetchOptions.body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+    if (["POST", "PUT", "PATCH"].includes(req.method.toUpperCase())) {
+      if (reqContentType && reqContentType.includes("multipart/form-data")) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(chunk);
+        }
+        fetchOptions.body = Buffer.concat(chunks);
+        (fetchOptions as any).duplex = "half";
+      } else if (req.body) {
+        fetchOptions.body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+      }
     }
 
     let response: Response | null = null;

@@ -308,7 +308,11 @@ class ComfyApiService {
       }
       blob = new Blob([array], { type: mime });
     } else {
-      const fetchRes = await fetch(imageDataUrl);
+      let targetFetchUrl = imageDataUrl;
+      if (typeof window === "undefined" && targetFetchUrl.startsWith("/")) {
+        targetFetchUrl = `http://127.0.0.1:3000${targetFetchUrl}`;
+      }
+      const fetchRes = await fetch(targetFetchUrl);
       blob = await fetchRes.blob();
     }
 
@@ -365,7 +369,7 @@ class ComfyApiService {
       negativePrompt = "text, watermark, blurry, low quality, distortion, deformed, ugly, bad anatomy, bad hands, missing fingers",
       sourceImageFilename,
       maskImageFilename,
-      denoise = maskImageFilename ? 0.85 : 0.70,
+      denoise = maskImageFilename ? 0.85 : 0.52,
       steps = 25,
       cfg = 7,
       seed = Math.floor(Math.random() * 1000000000),

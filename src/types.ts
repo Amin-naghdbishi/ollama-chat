@@ -193,6 +193,24 @@ export interface ComfyCheckpoint {
   path?: string;
 }
 
+export interface ImageEditReference {
+  sourceImageUrl: string;
+  sourceMessageId?: string;
+  sourceVersionId?: string;
+  sourceTitle?: string;
+}
+
+export interface GlassThemeConfig {
+  id: "glass-dark" | "glass-light";
+  name: string;
+  isDark: boolean;
+  primaryColor: string;
+  backgroundColor: string;
+  composerHoverBorderColor: string;
+  glassOpacity: number; // 0.1 to 0.95 (default ~0.70 for dark, ~0.80 for light)
+  chatBackgroundImage?: string; // Persistent local dataUrl or URL reference
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -203,6 +221,7 @@ export interface ChatMessage {
   modelUsed?: string; // Exact model ID used for this response
   attachments?: FileAttachment[];
   imageGeneration?: ImageGenerationData; // Integrated context-aware image generation state
+  imageEditReference?: ImageEditReference; // Reference to source image when editing via chat reply
   timestamp: number;
   isStreaming?: boolean;
   isError?: boolean;

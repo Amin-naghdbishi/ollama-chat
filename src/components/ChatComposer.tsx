@@ -12,6 +12,9 @@ import {
   BookOpen,
   Sparkles,
   Image as ImageIcon,
+  Eye,
+  RefreshCw,
+  Download,
 } from "lucide-react";
 import { FileAttachment, ContextToolType } from "../types";
 import { isVisionModel } from "../services/ollamaApi";
@@ -60,6 +63,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [isMultiline, setIsMultiline] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isDirectImageMode, setIsDirectImageMode] = useState(false);
+  const [replacingAttachmentId, setReplacingAttachmentId] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<FileAttachment | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
@@ -221,22 +227,36 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) {
+      setReplacingAttachmentId(null);
+      return;
+    }
 
     const fileList = Array.from(files);
     setIsCompressing(true);
+    setAttachmentError(null);
 
-    for (const file of fileList) {
-      const isImage = file.type.startsWith("image/");
-      const fileId = Math.random().toString(36).substring(2, 9);
+    try {
+      const processedAttachments: FileAttachment[] = [];
 
-      if (isImage) {
-        try {
-          const compressed = await compressImageFile(file, 1400, 0.85);
+      for (const file of fileList) {
+        // Size validation (limit to 50MB)
+        if (file.size > 50 * 1024 * 1024) {
+          setAttachmentError(
+            language === "fa"
+              ? `فایل ${file.name} بیش از حد مجاز (۵۰ مگابایت) است.`
+              : `File ${file.name} exceeds maximum size limit (50 MB).`
+          );
+          continue;
+        }
 
-          setAttachments((prev) => [
-            ...prev,
-            {
+        const isImage = file.type.startsWith("image/");
+        const fileId = Math.random().toString(36).substring(2, 9);
+
+        if (isImage) {
+          try {
+            const compressed = await compressImageFile(file, 1400, 0.85);
+            processedAttachments.push({
               id: fileId,
               name: file.name,
               size: Math.round(compressed.base64Data.length * 0.75),
@@ -244,40 +264,68 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               dataUrl: compressed.dataUrl,
               base64Data: compressed.base64Data,
               isImage: true,
-            },
-          ]);
-        } catch (err) {
-          console.error("Failed to process image attachment:", err);
-        }
-      } else {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const textContent = event.target?.result as string;
-          setAttachments((prev) => [
-            ...prev,
-            {
+            });
+          } catch (err) {
+            console.error("Failed to process image attachment:", err);
+            setAttachmentError(
+              language === "fa"
+                ? `خطا در پردازش تصویر ${file.name}`
+                : `Error processing image ${file.name}`
+            );
+          }
+        } else {
+          try {
+            const textContent = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (event) => resolve(event.target?.result as string || "");
+              reader.onerror = () => reject(new Error("Failed to read file"));
+              reader.readAsText(file);
+            });
+
+            processedAttachments.push({
               id: fileId,
               name: file.name,
               size: file.size,
               type: file.type || "text/plain",
               textContent,
               isImage: false,
-            },
-          ]);
-        };
-        reader.readAsText(file);
+            });
+          } catch (readErr) {
+            setAttachmentError(
+              language === "fa"
+                ? `امکان خواندن محتوای متنی فایل ${file.name} وجود ندارد.`
+                : `Could not read text content of file ${file.name}.`
+            );
+          }
+        }
       }
-    }
 
-    setIsCompressing(false);
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      if (replacingAttachmentId && processedAttachments.length > 0) {
+        setAttachments((prev) =>
+          prev.map((a) => (a.id === replacingAttachmentId ? processedAttachments[0] : a))
+        );
+      } else if (processedAttachments.length > 0) {
+        setAttachments((prev) => [...prev, ...processedAttachments]);
+      }
+    } finally {
+      setIsCompressing(false);
+      setReplacingAttachmentId(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
   const handleRemoveAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+    if (previewAttachment?.id === id) {
+      setPreviewAttachment(null);
+    }
+  };
+
+  const handleStartReplaceAttachment = (id: string) => {
+    setReplacingAttachmentId(id);
+    fileInputRef.current?.click();
   };
 
   const hasImage = attachments.some((a) => a.isImage);
@@ -444,6 +492,23 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         className="hidden"
       />
 
+      {/* Attachment Error Banner */}
+      {attachmentError && (
+        <div className="flex items-center justify-between gap-2 mb-2 p-2 px-3 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-300 text-xs shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <span className="leading-tight text-[11.5px]">{attachmentError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAttachmentError(null)}
+            className="p-1 hover:text-white"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       {/* Vision Warning Banner if image attached to non-vision model */}
       {hasImage && !isSelectedVisionCapable && (
         <div className="flex items-center gap-2 mb-2 p-2 px-3 rounded-xl bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs shadow-xs animate-fadeIn">
@@ -459,39 +524,72 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       )}
 
       {/* Single Continuous Outer Container */}
-      <div className="relative bg-[var(--composer-bg,var(--bg-surface,#1f212a))] border border-[var(--composer-border,var(--border-color,#282a36))] focus-within:border-[var(--composer-focus-border,var(--accent-color,#818cf8))] focus-within:ring-2 focus-within:ring-[var(--composer-focus-border,var(--accent-color,#818cf8))]/15 rounded-2xl sm:rounded-[20px] p-2 sm:p-2.5 transition-all duration-150 shadow-sm">
+      <div className="relative bg-[var(--composer-bg,var(--bg-surface,#1f212a))] border border-[var(--composer-border,var(--border-color,#282a36))] hover:border-[var(--composer-hover-border,var(--border-color,#3b3e4f))] focus-within:border-[var(--composer-focus-border,var(--accent-color,#818cf8))] focus-within:ring-2 focus-within:ring-[var(--composer-focus-border,var(--accent-color,#818cf8))]/15 rounded-2xl sm:rounded-[20px] p-2 sm:p-2.5 transition-all duration-150 shadow-sm">
         {/* Attachments Preview Row */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 pb-2 mb-2 border-b border-[var(--border-subtle,#1e2029)]">
             {attachments.map((file) => (
               <div
                 key={file.id}
-                className="relative group flex items-center gap-2 p-1 pr-2 rtl:pr-1 rtl:pl-2 rounded-xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-primary,#e6e9f0)] shadow-xs"
+                className="relative group flex items-center gap-2 p-1 pr-1.5 rtl:pr-1 rtl:pl-1.5 rounded-xl bg-[var(--bg-secondary,#191a21)] border border-[var(--border-color,#282a36)] text-xs text-[var(--text-primary,#e6e9f0)] shadow-xs"
               >
                 {file.isImage && file.dataUrl ? (
-                  <img
-                    src={file.dataUrl}
-                    alt={file.name}
-                    className="w-8 h-8 object-cover rounded-lg border border-[var(--border-subtle,#1e2029)]"
-                  />
+                  <div
+                    onClick={() => setPreviewAttachment(file)}
+                    className="relative cursor-pointer group/img"
+                    title={language === "fa" ? "مشاهده تصویر بزرگ‌تر" : "Click to inspect large image"}
+                  >
+                    <img
+                      src={file.dataUrl}
+                      alt={file.name}
+                      className="w-9 h-9 object-cover rounded-lg border border-[var(--border-subtle,#1e2029)] group-hover/img:brightness-110 transition-all"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 rounded-lg flex items-center justify-center transition-opacity">
+                      <Eye className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  </div>
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-[var(--btn-bg,#1c1e27)] flex items-center justify-center text-[var(--accent-color,#818cf8)]">
+                  <div
+                    onClick={() => {
+                      if (file.textContent) setPreviewAttachment(file);
+                    }}
+                    className="w-9 h-9 rounded-lg bg-[var(--btn-bg,#1c1e27)] flex items-center justify-center text-[var(--accent-color,#818cf8)] cursor-pointer"
+                  >
                     <FileText className="w-4 h-4" />
                   </div>
                 )}
-                <div className="flex flex-col text-left rtl:text-right max-w-[120px]">
-                  <span className="font-medium truncate text-[11px]">{file.name}</span>
+
+                <div
+                  className="flex flex-col text-left rtl:text-right max-w-[120px] cursor-pointer"
+                  onClick={() => setPreviewAttachment(file)}
+                >
+                  <span className="font-medium truncate text-[11px] hover:underline">{file.name}</span>
                   <span className="text-[9.5px] text-[var(--text-muted,#6b7280)] font-mono">
                     {(file.size / 1024).toFixed(1)} KB
                   </span>
                 </div>
-                <button
-                  onClick={() => handleRemoveAttachment(file.id)}
-                  className="p-1 rounded-full hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors cursor-pointer"
-                  aria-label="Remove attachment"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+
+                {/* Actions: Replace & Remove */}
+                <div className="flex items-center gap-0.5 ml-1">
+                  <button
+                    type="button"
+                    onClick={() => handleStartReplaceAttachment(file.id)}
+                    className="p-1 rounded-md hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-[var(--text-primary,#e6e9f0)] transition-colors cursor-pointer"
+                    title={language === "fa" ? "جایگزینی فایل" : "Replace file"}
+                    aria-label="Replace attachment"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(file.id)}
+                    className="p-1 rounded-md hover:bg-[var(--btn-hover,#262834)] text-[var(--text-muted,#6b7280)] hover:text-rose-400 transition-colors cursor-pointer"
+                    title={language === "fa" ? "حذف پیوست" : "Remove attachment"}
+                    aria-label="Remove attachment"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -560,6 +658,83 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           )}
         </div>
       </div>
+
+      {/* Attachment Inspection Modal (Before Sending) */}
+      {previewAttachment && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-between p-4 sm:p-6 animate-fadeIn select-none"
+          onClick={() => setPreviewAttachment(null)}
+        >
+          {/* Top Bar */}
+          <div
+            className="w-full max-w-4xl flex items-center justify-between py-2 px-4 rounded-2xl bg-neutral-900/90 border border-neutral-700/60 z-10 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="font-semibold text-xs sm:text-sm text-white truncate">
+                {previewAttachment.name}
+              </span>
+              <span className="text-[11px] font-mono text-neutral-400">
+                ({(previewAttachment.size / 1024).toFixed(1)} KB)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleStartReplaceAttachment(previewAttachment.id)}
+                className="px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-neutral-700 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Replace with another file"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>{language === "fa" ? "جایگزینی" : "Replace"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRemoveAttachment(previewAttachment.id)}
+                className="px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Remove attachment"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>{language === "fa" ? "حذف" : "Remove"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewAttachment(null)}
+                className="p-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-neutral-700 transition-colors cursor-pointer"
+                title="Close (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Inspection Stage */}
+          <div
+            className="flex-1 w-full max-w-4xl flex items-center justify-center p-4 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewAttachment.isImage && previewAttachment.dataUrl ? (
+              <img
+                src={previewAttachment.dataUrl}
+                alt={previewAttachment.name}
+                className="max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl border border-white/10"
+              />
+            ) : (
+              <div className="w-full max-h-[70vh] p-4 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-mono overflow-y-auto whitespace-pre-wrap">
+                {previewAttachment.textContent || "Binary document content"}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Hint */}
+          <div className="text-[11px] font-mono text-neutral-400 py-1">
+            {language === "fa"
+              ? "پیوست آماده ارسال است • کلیک در خارج برای بستن"
+              : "Attachment pending submission • Click outside or Esc to close"}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

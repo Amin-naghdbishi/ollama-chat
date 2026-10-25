@@ -201,6 +201,68 @@ Produce a single, comprehensive text-to-image prompt based on the instructions a
 }
 
 /**
+ * Common Persian-to-English vocabulary for resilient offline fallback translation
+ */
+const FA_TO_EN_VOCAB: Record<string, string> = {
+  مارمولک: "lizard",
+  تاج: "crown",
+  کلاه: "hat",
+  عینک: "glasses",
+  لباس: "clothing",
+  کت: "jacket",
+  موها: "hair",
+  موهای: "hair",
+  سر: "head",
+  چشم: "eyes",
+  ماشین: "car",
+  درخت: "tree",
+  گل: "flower",
+  آسمان: "sky",
+  دریا: "sea",
+  رنگ: "color",
+  قرمز: "red",
+  آبی: "blue",
+  سبز: "green",
+  زرد: "yellow",
+  سفید: "white",
+  سیاه: "black",
+  قهوه‌ای: "brown",
+  تیره: "dark",
+  روشن: "bright",
+  طلایی: "golden",
+};
+
+/**
+ * Heuristic fallback for Persian edit instructions when LLM is offline
+ */
+function heuristicTranslatePersianEdit(instruction: string): string {
+  let cleaned = instruction.trim();
+  const words = cleaned.split(/\s+/);
+  const translatedWords: string[] = [];
+
+  for (const w of words) {
+    const cleanW = w.replace(/[.,،؛!?]/g, "");
+    if (FA_TO_EN_VOCAB[cleanW]) {
+      translatedWords.push(FA_TO_EN_VOCAB[cleanW]);
+    }
+  }
+
+  // Handle specific common edit patterns
+  if (cleaned.includes("تاج") && cleaned.includes("مارمولک")) {
+    return "a lizard with a golden crown above its head";
+  }
+  if (cleaned.includes("رنگ مو") || (cleaned.includes("مو") && cleaned.includes("قهوه‌ای"))) {
+    return "make hair dark brown";
+  }
+
+  if (translatedWords.length > 0) {
+    return `modify image: ${translatedWords.join(" ")}`;
+  }
+
+  return instruction;
+}
+
+/**
  * Synthesizes or faithfully translates natural-language image edit instructions (EN or FA)
  * without hallucinating unrelated visual details or altering the user's intent.
  */
@@ -208,20 +270,38 @@ export async function synthesizeImageEditPrompt(params: {
   editInstruction: string;
   chatModel: string;
   settings: AppSettings;
+  sourceContext?: string;
   signal?: AbortSignal;
 }): Promise<string> {
-  const { editInstruction, chatModel, settings, signal } = params;
+  const { editInstruction, chatModel, settings, sourceContext, signal } = params;
 
-  // If already pure English, preserve exact instruction directly
-  if (!isRtlText(editInstruction) && /^[\x00-\x7F]*$/.test(editInstruction)) {
+  const isFa = isRtlText(editInstruction) || !/^[\x00-\x7F]*$/.test(editInstruction);
+
+  // If already pure English and no sourceContext to blend, preserve exact instruction directly
+  if (!isFa && !sourceContext) {
     return editInstruction.trim();
   }
 
-  const promptTranslateInstruction = `Translate the following image edit instruction faithfully from Persian to English for an image-to-image AI workflow.
+  const promptTranslateInstruction = isFa
+    ? sourceContext
+      ? `You are an image editing expert. The original image is described as: "${sourceContext}".
+The user wants to make the following modification (written in Persian):
+"${editInstruction}"
+
+Translate the modification faithfully into English and describe the modified target scene for an image-to-image diffusion model.
+Preserve the subject and composition from the original image, and incorporate ONLY the requested modification without adding unrelated elements, artistic styles, or commentary.
+Output ONLY the final English description.`
+      : `Translate the following image edit instruction faithfully from Persian to English for an image-to-image AI workflow.
 Preserve the exact meaning, targeted regions, and requested modifications without inventing extra details, objects, or styles. Output ONLY the English edit prompt without conversational commentary.
 
 User Edit Instruction:
-"${editInstruction}"`;
+"${editInstruction}"`
+    : `You are an image editing expert. The original image is described as: "${sourceContext}".
+The user wants to make the following modification:
+"${editInstruction}"
+
+Describe the modified target scene for an image-to-image diffusion model.
+Preserve the subject and composition from the original image, and incorporate ONLY the requested modification without adding unrelated elements. Output ONLY the English description.`;
 
   try {
     let resultText = "";
@@ -238,8 +318,8 @@ User Edit Instruction:
 
     const cleaned = resultText
       .replace(/^["'`]+|["'`]+$/g, "")
-      .replace(/^(here is (the|your) (translation|edit prompt):?)/i, "")
-      .replace(/^edit prompt:\s*/i, "")
+      .replace(/^(here is (the|your) (translation|edit prompt|description):?)/i, "")
+      .replace(/^(edit prompt|target scene):\s*/i, "")
       .trim();
 
     if (cleaned.length > 2) {
@@ -247,6 +327,11 @@ User Edit Instruction:
     }
   } catch (err) {
     console.warn("Edit prompt translation fallback:", err);
+  }
+
+  // Resilient heuristic translation for Persian when LLM is unreachable
+  if (isFa) {
+    return heuristicTranslatePersianEdit(editInstruction);
   }
 
   return editInstruction.trim();

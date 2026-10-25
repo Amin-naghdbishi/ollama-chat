@@ -33,11 +33,12 @@ import {
   Upload,
   Sparkles,
   Brain,
+  Save,
   Image as ImageIcon,
 } from "lucide-react";
-import { AIProvider, AppSettings, ConnectionStatus, Conversation, OllamaModel, UnifiedModel } from "../../types";
+import { AIProvider, AppSettings, ConnectionStatus, Conversation, GlassThemeConfig, OllamaModel, UnifiedModel } from "../../types";
 import { OllamaApi } from "../../services/ollamaApi";
-import { BUILTIN_THEMES, ThemeEngine, CustomTheme, normalizeThemeColors } from "../../lib/themeEngine";
+import { BUILTIN_THEMES, ThemeEngine } from "../../lib/themeEngine";
 import { formatBytes } from "../../lib/formatters";
 import { Language, getTranslation } from "../../lib/i18n";
 import { DEFAULT_IMAGE_PROMPT_INSTRUCTIONS } from "../../lib/storage";
@@ -100,8 +101,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab);
   const [formData, setFormData] = useState<AppSettings>({ ...settings });
-  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => ThemeEngine.getCustomThemes());
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const bgImageInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Independent Glass Dark and Glass Light Theme Configurations
+  const activeGlassId: "glass-dark" | "glass-light" =
+    formData.theme === "glass-light" ? "glass-light" : "glass-dark";
+  const [glassDarkConfig, setGlassDarkConfig] = useState<GlassThemeConfig>(() =>
+    ThemeEngine.getGlassThemeConfig("glass-dark")
+  );
+  const [glassLightConfig, setGlassLightConfig] = useState<GlassThemeConfig>(() =>
+    ThemeEngine.getGlassThemeConfig("glass-light")
+  );
+
+  const activeGlassConfig = activeGlassId === "glass-dark" ? glassDarkConfig : glassLightConfig;
+
+  const handleUpdateActiveGlass = (updates: Partial<GlassThemeConfig>) => {
+    if (activeGlassId === "glass-dark") {
+      const updated = { ...glassDarkConfig, ...updates, id: "glass-dark" as const };
+      setGlassDarkConfig(updated);
+      ThemeEngine.applyLiveGlassTheme(updated);
+    } else {
+      const updated = { ...glassLightConfig, ...updates, id: "glass-light" as const };
+      setGlassLightConfig(updated);
+      ThemeEngine.applyLiveGlassTheme(updated);
+    }
+  };
+
+  const handleSaveActiveGlassTheme = () => {
+    const configToSave = activeGlassId === "glass-dark" ? glassDarkConfig : glassLightConfig;
+    ThemeEngine.saveGlassThemeConfig(configToSave);
+    ThemeEngine.applyTheme(activeGlassId, configToSave);
+    handleAutoSave({ ...formData, theme: activeGlassId });
+  };
+
+  const handleBackgroundImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        handleUpdateActiveGlass({ chatBackgroundImage: dataUrl });
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
   const [selectedPromptModel, setSelectedPromptModel] = useState<string>(
     selectedModel || (models[0]?.name ?? "gemma3:4b")
   );
@@ -113,10 +158,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   useEffect(() => {
     setFormData({ ...settings });
   }, [settings]);
-
-  useEffect(() => {
-    setCustomThemes(ThemeEngine.getCustomThemes());
-  }, [formData.theme]);
 
   useEffect(() => {
     if (selectedModel) {
@@ -144,7 +185,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleSelectTheme = (themeId: string) => {
     const updated = { ...formData, theme: themeId };
     setFormData(updated);
-    ThemeEngine.applyTheme(themeId);
+    if (themeId === "glass-dark") {
+      ThemeEngine.applyTheme("glass-dark", glassDarkConfig);
+    } else if (themeId === "glass-light") {
+      ThemeEngine.applyTheme("glass-light", glassLightConfig);
+    } else {
+      ThemeEngine.applyTheme(themeId);
+    }
     onSaveSettings(updated);
   };
 
@@ -375,331 +422,300 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
-            {/* TAB 2: APPEARANCE */}
+            {/* TAB 2: APPEARANCE & THEMES */}
             {activeTab === "appearance" && (
-              <div className="space-y-4 animate-fadeIn">
+              <div className="space-y-6 animate-fadeIn">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">{t("appearanceHeading")}</h2>
+                    <h2 className="text-sm font-bold text-[var(--text-primary,#e6e9f0)]">
+                      {lang === "fa" ? "پوسته‌ها و سفارشی‌سازی ظاهر" : "Themes & Appearance"}
+                    </h2>
+                    <p className="text-xs text-[var(--text-secondary,#9ba3b2)]">
+                      {lang === "fa"
+                        ? "انتخاب پوسته و سفارشی‌سازی شیشه‌ای با اعمال زنده"
+                        : "Select theme and customize live glass transparency and colors"}
+                    </p>
                   </div>
 
-                  {/* Builder Actions */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".json,.theme.json"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          try {
-                            const parsed = JSON.parse(event.target?.result as string);
-                            if (parsed && typeof parsed === "object") {
-                              const base = BUILTIN_THEMES[parsed.baseThemeId] || BUILTIN_THEMES.dark;
-                              const newCustom: CustomTheme = {
-                                id: `custom-${Date.now()}`,
-                                name: parsed.name || "Imported Custom Theme",
-                                isDark: parsed.isDark ?? base.isDark,
-                                isCustom: true,
-                                baseThemeId: parsed.baseThemeId || "dark",
-                                createdAt: Date.now(),
-                                updatedAt: Date.now(),
-                                colors: normalizeThemeColors(parsed.colors, base.colors),
-                              };
-                              ThemeEngine.saveCustomTheme(newCustom);
-                              setCustomThemes(ThemeEngine.getCustomThemes());
-                              handleSelectTheme(newCustom.id);
-                            }
-                          } catch (err) {
-                            alert("Failed to parse theme file. Please ensure it is valid JSON.");
-                          }
-                        };
-                        reader.readAsText(file);
-                        e.target.value = "";
-                      }}
-                      className="hidden"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs font-semibold text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{t("importTheme")}</span>
-                    </button>
-
-                    {onOpenThemeBuilder && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenThemeBuilder()}
-                        className="px-3.5 py-1.5 rounded-xl bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] hover:brightness-110 active:scale-98 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>{t("createNewTheme")}</span>
-                      </button>
-                    )}
-                  </div>
+                  {/* Save Theme Action Button */}
+                  <button
+                    type="button"
+                    onClick={handleSaveActiveGlassTheme}
+                    className="px-4 py-2 rounded-xl bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] font-bold text-xs flex items-center gap-2 shadow-md hover:brightness-110 active:scale-98 transition-all cursor-pointer self-start sm:self-auto"
+                  >
+                    <Save className="w-4 h-4 stroke-[2.2]" />
+                    <span>{lang === "fa" ? "ذخیره پوسته" : "Save Theme"}</span>
+                  </button>
                 </div>
 
-                {/* CUSTOM THEMES SECTION */}
+                {/* 6.1 Two Independent Glass Themes */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary,#e6e9f0)]">
-                        {t("customThemes")} ({customThemes.length})
-                      </h3>
-                    </div>
-                  </div>
-
-                  {customThemes.length === 0 ? (
-                    <div className="p-6 rounded-2xl border border-dashed border-[var(--border-color,#282a36)] bg-[var(--bg-surface,#1f212a)]/40 flex flex-col items-center justify-center text-center space-y-3">
-                      <div className="w-10 h-10 rounded-2xl bg-[var(--bg-primary,#131418)] border border-[var(--border-color,#282a36)] flex items-center justify-center text-[var(--accent-color,#818cf8)] shadow-xs">
-                        <Palette className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{t("noCustomThemesYet")}</p>
-                      </div>
-                      {onOpenThemeBuilder && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenThemeBuilder()}
-                          className="px-3.5 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs font-semibold text-[var(--accent-color,#818cf8)] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>{t("buildFirstTheme")}</span>
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {customThemes.map((ct) => {
-                        const isSelected = formData.theme === ct.id;
-                        return (
-                          <div
-                            key={ct.id}
-                            className={`p-4 rounded-2xl border text-left rtl:text-right transition-all flex flex-col justify-between gap-3 ${
-                              isSelected
-                                ? "border-[var(--accent-color,#818cf8)] bg-[var(--bg-secondary,#191a21)] shadow-xs ring-1 ring-[var(--accent-color,#818cf8)]/30"
-                                : "border-[var(--border-color,#282a36)] bg-[var(--bg-surface,#1f212a)] hover:border-[var(--text-muted,#6b7280)]"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <div
-                                onClick={() => handleSelectTheme(ct.id)}
-                                className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
-                              >
-                                {ct.isDark ? (
-                                  <Moon className="w-4 h-4 text-[var(--accent-color,#818cf8)] shrink-0" />
-                                ) : (
-                                  <Sun className="w-4 h-4 text-amber-500 shrink-0" />
-                                )}
-                                <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)] truncate">
-                                  {ct.name}
-                                </span>
-                                <span className="px-1.5 py-0.2 rounded bg-[var(--accent-color,#818cf8)]/15 text-[var(--accent-color,#818cf8)] text-[9px] font-mono font-bold shrink-0">
-                                  CUSTOM
-                                </span>
-                              </div>
-
-                              {isSelected && (
-                                <div className="w-4 h-4 rounded-full bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] flex items-center justify-center shrink-0">
-                                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Swatches Preview & Actions */}
-                            <div className="flex items-center justify-between gap-2">
-                              <div
-                                onClick={() => handleSelectTheme(ct.id)}
-                                className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[var(--bg-primary,#131418)] border border-[var(--border-subtle,#1e2029)] cursor-pointer"
-                              >
-                                <div
-                                  className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                  style={{ backgroundColor: ct.colors.bgPrimary }}
-                                  title="Background"
-                                />
-                                <div
-                                  className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                  style={{ backgroundColor: ct.colors.bgSurface }}
-                                  title="Surface"
-                                />
-                                <div
-                                  className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                  style={{ backgroundColor: ct.colors.accentColor }}
-                                  title="Accent"
-                                />
-                                <div
-                                  className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                  style={{ backgroundColor: ct.colors.textPrimary }}
-                                  title="Text"
-                                />
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                {onOpenThemeBuilder && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onOpenThemeBuilder(ct.id)}
-                                    className="p-1.5 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer"
-                                    title={t("editInBuilder")}
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const duplicate: CustomTheme = {
-                                      ...ct,
-                                      id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-                                      name: `${ct.name} ${t("copySuffix")}`,
-                                      createdAt: Date.now(),
-                                      updatedAt: Date.now(),
-                                    };
-                                    ThemeEngine.saveCustomTheme(duplicate);
-                                    setCustomThemes(ThemeEngine.getCustomThemes());
-                                  }}
-                                  className="p-1.5 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer"
-                                  title={t("duplicateTheme")}
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const exportData = {
-                                      id: ct.id,
-                                      name: ct.name,
-                                      baseThemeId: ct.baseThemeId,
-                                      isDark: ct.isDark,
-                                      colors: ct.colors,
-                                    };
-                                    const dataStr =
-                                      "data:text/json;charset=utf-8," +
-                                      encodeURIComponent(JSON.stringify(exportData, null, 2));
-                                    const a = document.createElement("a");
-                                    a.setAttribute("href", dataStr);
-                                    a.setAttribute(
-                                      "download",
-                                      `${ct.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}.theme.json`
-                                    );
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                  }}
-                                  className="p-1.5 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer"
-                                  title={t("exportThemeJson")}
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (confirm(t("deleteCustomThemeConfirm").replace("{name}", ct.name))) {
-                                      ThemeEngine.deleteCustomTheme(ct.id);
-                                      setCustomThemes(ThemeEngine.getCustomThemes());
-                                      if (formData.theme === ct.id) {
-                                        handleSelectTheme("dark");
-                                      }
-                                    }
-                                  }}
-                                  className="p-1.5 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-rose-950/40 border border-[var(--border-color,#282a36)] text-[var(--text-muted,#6b7280)] hover:text-rose-400 transition-colors cursor-pointer"
-                                  title={t("deleteTheme")}
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* BUILT-IN THEMES SECTION */}
-                <div className="space-y-3 pt-4 border-t border-[var(--border-subtle,#1e2029)]">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-primary,#e6e9f0)]">
-                    {t("builtInThemes")} ({Object.keys(BUILTIN_THEMES).length})
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--accent-color,#818cf8)] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{lang === "fa" ? "پوسته‌های شیشه‌ای (Glass Themes)" : "Glass Themes"}</span>
                   </h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {Object.values(BUILTIN_THEMES).map((th) => {
-                      const isSelected = (formData.theme || "dark") === th.id;
+                    {/* Glass Dark Card */}
+                    <div
+                      onClick={() => handleSelectTheme("glass-dark")}
+                      className={`p-4 rounded-2xl border text-left rtl:text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                        formData.theme === "glass-dark"
+                          ? "border-[var(--accent-color,#818cf8)] bg-[var(--bg-secondary,#191a21)] shadow-md ring-2 ring-[var(--accent-color,#818cf8)]/30"
+                          : "border-[var(--border-color,#282a36)] bg-[var(--bg-surface,#1f212a)] hover:border-[var(--text-muted,#6b7280)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2.5">
+                          <Moon className="w-4.5 h-4.5 text-[var(--accent-color,#818cf8)]" />
+                          <span className="font-bold text-xs text-[var(--text-primary,#e6e9f0)]">
+                            Glass Dark
+                          </span>
+                        </div>
+                        {formData.theme === "glass-dark" && (
+                          <div className="w-4 h-4 rounded-full bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/40 border border-white/10 w-fit">
+                        <div className="w-4 h-4 rounded-md border border-white/20" style={{ backgroundColor: glassDarkConfig.backgroundColor }} />
+                        <div className="w-4 h-4 rounded-md border border-white/20" style={{ backgroundColor: glassDarkConfig.primaryColor }} />
+                        <div className="w-4 h-4 rounded-md border border-white/20" style={{ backgroundColor: glassDarkConfig.composerHoverBorderColor }} />
+                      </div>
+                    </div>
+
+                    {/* Glass Light Card */}
+                    <div
+                      onClick={() => handleSelectTheme("glass-light")}
+                      className={`p-4 rounded-2xl border text-left rtl:text-right transition-all flex flex-col justify-between gap-3 cursor-pointer ${
+                        formData.theme === "glass-light"
+                          ? "border-[var(--accent-color,#818cf8)] bg-[var(--bg-secondary,#191a21)] shadow-md ring-2 ring-[var(--accent-color,#818cf8)]/30"
+                          : "border-[var(--border-color,#282a36)] bg-[var(--bg-surface,#1f212a)] hover:border-[var(--text-muted,#6b7280)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2.5">
+                          <Sun className="w-4.5 h-4.5 text-amber-500" />
+                          <span className="font-bold text-xs text-[var(--text-primary,#e6e9f0)]">
+                            Glass Light
+                          </span>
+                        </div>
+                        {formData.theme === "glass-light" && (
+                          <div className="w-4 h-4 rounded-full bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white/40 border border-black/10 w-fit">
+                        <div className="w-4 h-4 rounded-md border border-black/20" style={{ backgroundColor: glassLightConfig.backgroundColor }} />
+                        <div className="w-4 h-4 rounded-md border border-black/20" style={{ backgroundColor: glassLightConfig.primaryColor }} />
+                        <div className="w-4 h-4 rounded-md border border-black/20" style={{ backgroundColor: glassLightConfig.composerHoverBorderColor }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6.2 Simple Theme Customization Controls */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-[var(--border-subtle,#1e2029)] pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />
+                      <h3 className="font-bold text-xs text-[var(--text-primary,#e6e9f0)] uppercase tracking-wider">
+                        {lang === "fa"
+                          ? `سفارشی‌سازی ${activeGlassId === "glass-dark" ? "Glass Dark" : "Glass Light"}`
+                          : `Customize ${activeGlassId === "glass-dark" ? "Glass Dark" : "Glass Light"}`}
+                      </h3>
+                    </div>
+                    <span className="text-[11px] font-mono text-[var(--text-muted,#6b7280)]">
+                      {lang === "fa" ? "اعمال فوری تغییرات در کل برنامه" : "Immediate live updates"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* A. Primary / Accent Color */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-[var(--text-primary,#e6e9f0)]">
+                        {lang === "fa" ? "رنگ اصلی / تأکیدی" : "Primary / Accent Color"}
+                      </label>
+                      <div className="flex items-center gap-2 p-1.5 rounded-xl bg-[var(--bg-primary,#131418)] border border-[var(--border-color,#282a36)]">
+                        <input
+                          type="color"
+                          value={activeGlassConfig.primaryColor}
+                          onChange={(e) => handleUpdateActiveGlass({ primaryColor: e.target.value })}
+                          className="w-7 h-7 rounded-lg border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={activeGlassConfig.primaryColor}
+                          onChange={(e) => handleUpdateActiveGlass({ primaryColor: e.target.value })}
+                          className="w-full bg-transparent font-mono text-xs text-[var(--text-primary,#e6e9f0)] focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* B. Background Color */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-[var(--text-primary,#e6e9f0)]">
+                        {lang === "fa" ? "رنگ پس‌زمینه" : "Background Color"}
+                      </label>
+                      <div className="flex items-center gap-2 p-1.5 rounded-xl bg-[var(--bg-primary,#131418)] border border-[var(--border-color,#282a36)]">
+                        <input
+                          type="color"
+                          value={activeGlassConfig.backgroundColor}
+                          onChange={(e) => handleUpdateActiveGlass({ backgroundColor: e.target.value })}
+                          className="w-7 h-7 rounded-lg border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={activeGlassConfig.backgroundColor}
+                          onChange={(e) => handleUpdateActiveGlass({ backgroundColor: e.target.value })}
+                          className="w-full bg-transparent font-mono text-xs text-[var(--text-primary,#e6e9f0)] focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* C. Composer Hover-Border Color */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-[var(--text-primary,#e6e9f0)]">
+                        {lang === "fa" ? "رنگ حاشیه شناور ورودی چت" : "Composer Hover-Border"}
+                      </label>
+                      <div className="flex items-center gap-2 p-1.5 rounded-xl bg-[var(--bg-primary,#131418)] border border-[var(--border-color,#282a36)]">
+                        <input
+                          type="color"
+                          value={activeGlassConfig.composerHoverBorderColor}
+                          onChange={(e) => handleUpdateActiveGlass({ composerHoverBorderColor: e.target.value })}
+                          className="w-7 h-7 rounded-lg border-0 cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={activeGlassConfig.composerHoverBorderColor}
+                          onChange={(e) => handleUpdateActiveGlass({ composerHoverBorderColor: e.target.value })}
+                          className="w-full bg-transparent font-mono text-xs text-[var(--text-primary,#e6e9f0)] focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* D. Glass / Transparency Level Slider */}
+                  <div className="space-y-1.5 pt-2 border-t border-[var(--border-subtle,#1e2029)]">
+                    <div className="flex items-center justify-between text-[11.5px]">
+                      <span className="font-semibold text-[var(--text-primary,#e6e9f0)]">
+                        {lang === "fa" ? "سطح شفافیت شیشه‌ای (Glass Transparency)" : "Glass / Transparency Level"}
+                      </span>
+                      <span className="font-mono text-xs text-[var(--accent-color,#818cf8)] font-bold">
+                        {Math.round(activeGlassConfig.glassOpacity * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.15"
+                      max="0.95"
+                      step="0.05"
+                      value={activeGlassConfig.glassOpacity}
+                      onChange={(e) => handleUpdateActiveGlass({ glassOpacity: parseFloat(e.target.value) })}
+                      className="w-full accent-[var(--accent-color,#818cf8)] cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-[var(--text-muted,#6b7280)] font-mono">
+                      <span>{lang === "fa" ? "شفاف‌تر (حداقل ۱۵٪)" : "More Transparent (15%)"}</span>
+                      <span>{lang === "fa" ? "مات‌تر (حداکثر ۹۵٪)" : "More Opaque (95%)"}</span>
+                    </div>
+                  </div>
+
+                  {/* E. Chat Background Image */}
+                  <div className="space-y-2 pt-2 border-t border-[var(--border-subtle,#1e2029)]">
+                    <label className="text-[11.5px] font-semibold text-[var(--text-primary,#e6e9f0)] flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)]" />
+                      <span>{lang === "fa" ? "تصویر پس‌زمینه چت" : "Chat Background Image"}</span>
+                    </label>
+
+                    <div className="flex items-center gap-3">
+                      <input
+                        ref={bgImageInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBackgroundImageSelect}
+                        className="hidden"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => bgImageInputRef.current?.click()}
+                        className="px-3.5 py-1.5 rounded-xl bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-xs font-semibold text-[var(--text-primary,#e6e9f0)] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>
+                          {activeGlassConfig.chatBackgroundImage
+                            ? lang === "fa" ? "تغییر تصویر پس‌زمینه" : "Replace Background Image"
+                            : lang === "fa" ? "انتخاب تصویر محلی" : "Choose Local Image"}
+                        </span>
+                      </button>
+
+                      {activeGlassConfig.chatBackgroundImage && (
+                        <>
+                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-[var(--border-color,#282a36)] shadow-xs shrink-0">
+                            <img
+                              src={activeGlassConfig.chatBackgroundImage}
+                              alt="Background Preview"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateActiveGlass({ chatBackgroundImage: undefined })}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-950/80 border border-rose-800 text-rose-300 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>{lang === "fa" ? "حذف پس‌زمینه" : "Remove"}</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Standard Built-in Themes (Dark, Light, Soft Slate) */}
+                <div className="space-y-3 pt-3 border-t border-[var(--border-subtle,#1e2029)]">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted,#6b7280)]">
+                    {lang === "fa" ? "پوسته‌های کلاسیک" : "Classic Built-in Themes"}
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {["dark", "light", "soft-gray"].map((thId) => {
+                      const th = BUILTIN_THEMES[thId];
+                      if (!th) return null;
+                      const isSelected = formData.theme === th.id;
                       return (
                         <div
                           key={th.id}
-                          className={`p-4 rounded-2xl border text-left rtl:text-right transition-all flex flex-col justify-between gap-3 ${
+                          onClick={() => handleSelectTheme(th.id)}
+                          className={`p-3.5 rounded-2xl border text-left rtl:text-right transition-all flex flex-col justify-between gap-2.5 cursor-pointer ${
                             isSelected
                               ? "border-[var(--accent-color,#818cf8)] bg-[var(--bg-secondary,#191a21)] shadow-xs ring-1 ring-[var(--accent-color,#818cf8)]/30"
                               : "border-[var(--border-color,#282a36)] bg-[var(--bg-surface,#1f212a)] hover:border-[var(--text-muted,#6b7280)]"
                           }`}
                         >
-                          <div
-                            onClick={() => handleSelectTheme(th.id)}
-                            className="flex items-center justify-between w-full cursor-pointer"
-                          >
+                          <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-2">
                               {th.isDark ? (
-                                <Moon className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />
+                                <Moon className="w-3.5 h-3.5 text-[var(--text-secondary,#9ba3b2)]" />
                               ) : (
-                                <Sun className="w-4 h-4 text-amber-500" />
+                                <Sun className="w-3.5 h-3.5 text-amber-500" />
                               )}
-                              <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{th.name}</span>
+                              <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">
+                                {th.name}
+                              </span>
                             </div>
                             {isSelected && (
-                              <div className="w-4 h-4 rounded-full bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] flex items-center justify-center">
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              <div className="w-3.5 h-3.5 rounded-full bg-[var(--accent-color,#818cf8)] text-[var(--accent-text,#09090b)] flex items-center justify-center">
+                                <Check className="w-2 h-2 stroke-[3]" />
                               </div>
                             )}
                           </div>
-
-                          {/* Swatches Preview & Create from this base button */}
-                          <div className="flex items-center justify-between gap-2">
-                            <div
-                              onClick={() => handleSelectTheme(th.id)}
-                              className="flex items-center gap-2 p-1.5 rounded-xl bg-[var(--bg-primary,#131418)] border border-[var(--border-subtle,#1e2029)] cursor-pointer"
-                            >
-                              <div
-                                className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                style={{ backgroundColor: th.colors.bgPrimary }}
-                                title="Background"
-                              />
-                              <div
-                                className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                style={{ backgroundColor: th.colors.bgSurface }}
-                                title="Surface"
-                              />
-                              <div
-                                className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                style={{ backgroundColor: th.colors.accentColor }}
-                                title="Accent"
-                              />
-                              <div
-                                className="w-4 h-4 rounded-md border border-black/10 shadow-xs"
-                                style={{ backgroundColor: th.colors.textPrimary }}
-                                title="Text"
-                              />
-                            </div>
-
-                            {onOpenThemeBuilder && (
-                              <button
-                                type="button"
-                                onClick={() => onOpenThemeBuilder(undefined, th.id)}
-                                className="px-2 py-1 rounded-lg bg-[var(--btn-bg,#1c1e27)] hover:bg-[var(--btn-hover,#262834)] border border-[var(--border-color,#282a36)] text-[10px] font-semibold text-[var(--text-secondary,#9ba3b2)] hover:text-white transition-colors cursor-pointer"
-                                title={`Create a custom theme starting from ${th.name}`}
-                              >
-                                {t("customizeTheme")}
-                              </button>
-                            )}
+                          <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--bg-primary,#131418)] border border-[var(--border-subtle,#1e2029)] w-fit">
+                            <div className="w-3.5 h-3.5 rounded-md border border-black/10" style={{ backgroundColor: th.colors.bgPrimary }} />
+                            <div className="w-3.5 h-3.5 rounded-md border border-black/10" style={{ backgroundColor: th.colors.bgSurface }} />
+                            <div className="w-3.5 h-3.5 rounded-md border border-black/10" style={{ backgroundColor: th.colors.accentColor }} />
                           </div>
                         </div>
                       );

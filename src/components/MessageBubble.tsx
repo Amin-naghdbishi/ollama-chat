@@ -20,6 +20,7 @@ import {
   ZoomOut,
   Maximize2,
   RotateCcw,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ChatMessage, AIActivityState } from "../types";
 import { CodeBlock } from "./CodeBlock";
@@ -43,12 +44,12 @@ interface MessageBubbleProps {
   language?: Language;
   selectedModel?: string | null;
   onApplyImageEdit?: (params: {
-    messageId: string;
+    sourceMessageId?: string;
     sourceImageUrl: string;
+    sourceVersionId?: string;
+    sourceTitle?: string;
     editInstruction: string;
-    maskDataUrl?: string;
     referenceImages?: FileAttachment[];
-    toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt";
   }) => Promise<string | null>;
 }
 
@@ -269,6 +270,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : isUser ? (
           /* User Message Bubble */
           <div className="bg-[var(--bg-user-msg,#222530)] border border-[var(--border-color,#313547)] px-4.5 py-3 rounded-2xl rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm text-[var(--text-primary,#f3f4f6)] text-[14.5px] sm:text-[15px] leading-relaxed shadow-sm">
+            {/* Reply / Reference indicator above message if this is an image edit request */}
+            {message.imageEditReference && (
+              <div
+                className="flex items-center gap-2.5 mb-2.5 p-1.5 px-2.5 rounded-xl bg-black/30 border-l-2 rtl:border-l-0 rtl:border-r-2 border-[var(--accent-color,#818cf8)] border border-white/10 text-xs shadow-xs"
+              >
+                <img
+                  src={message.imageEditReference.sourceImageUrl}
+                  alt="Source"
+                  className="w-10 h-10 object-cover rounded-lg border border-white/20 cursor-pointer hover:opacity-85 transition-opacity shrink-0"
+                  onClick={() => setViewerImageUrl(message.imageEditReference!.sourceImageUrl)}
+                  title="Click to view source visual"
+                />
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--accent-color,#818cf8)]">
+                    <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{language === "fa" ? "ویرایش بر روی تصویر" : "Editing image"}</span>
+                  </div>
+                  <span className="text-[10px] text-[var(--text-muted,#9ca3af)] truncate font-mono">
+                    {message.imageEditReference.sourceTitle || "Source visual"}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div
               ref={userContentRef}
               dir={isRtl ? "rtl" : "ltr"}
@@ -556,6 +581,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <ImageViewerModal
           imageUrl={viewerImageUrl}
           rootImageId={message.id}
+          sourceMessageId={message.id}
           title={message.imageGeneration?.modelUsed || message.attachments?.[0]?.name || "Image Workspace"}
           onClose={() => setViewerImageUrl(null)}
           onDownload={() =>
@@ -565,12 +591,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             onApplyImageEdit
               ? (params) =>
                   onApplyImageEdit({
-                    messageId: message.id,
+                    sourceMessageId: message.id,
                     sourceImageUrl: params.sourceImageUrl,
+                    sourceVersionId: params.sourceVersionId,
+                    sourceTitle: params.sourceTitle,
                     editInstruction: params.editInstruction,
-                    maskDataUrl: params.maskDataUrl,
                     referenceImages: params.referenceImages,
-                    toolUsed: params.toolUsed,
                   })
               : undefined
           }

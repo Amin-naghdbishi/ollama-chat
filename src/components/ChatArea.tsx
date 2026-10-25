@@ -25,12 +25,12 @@ interface ChatAreaProps {
   onDismissError?: () => void;
   language?: Language;
   onApplyImageEdit?: (params: {
-    messageId: string;
+    sourceMessageId?: string;
     sourceImageUrl: string;
+    sourceVersionId?: string;
+    sourceTitle?: string;
     editInstruction: string;
-    maskDataUrl?: string;
     referenceImages?: FileAttachment[];
-    toolUsed?: "markup" | "erase" | "remove-bg" | "resize" | "edit-prompt";
   }) => Promise<string | null>;
 }
 

@@ -12,7 +12,8 @@ import {
   StressTestResult,
   ImageModelProfile,
 } from "../types";
-import { CustomTheme, ThemeEngine } from "./themeEngine";
+import { ThemeEngine } from "./themeEngine";
+import { GlassThemeConfig } from "../types";
 import { DEFAULT_COMPRESSION_CONFIG } from "./contextCompressor";
 
 const STORAGE_KEYS = {
@@ -342,16 +343,12 @@ export const Storage = {
     }
   },
 
-  getCustomThemes(): CustomTheme[] {
-    return ThemeEngine.getCustomThemes();
+  getGlassThemeConfig(id: "glass-dark" | "glass-light"): GlassThemeConfig {
+    return ThemeEngine.getGlassThemeConfig(id);
   },
 
-  saveCustomTheme(theme: CustomTheme): void {
-    ThemeEngine.saveCustomTheme(theme);
-  },
-
-  deleteCustomTheme(id: string): void {
-    ThemeEngine.deleteCustomTheme(id);
+  saveGlassThemeConfig(config: GlassThemeConfig): void {
+    ThemeEngine.saveGlassThemeConfig(config);
   },
 
   getProviders(): AIProvider[] {
