@@ -306,7 +306,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-left rtl:text-right cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm sm:text-xs font-medium transition-all text-left rtl:text-right cursor-pointer ${
                   isActive
                     ? "bg-[var(--bg-surface,#1f212a)] text-[var(--text-primary,#e6e9f0)] border border-[var(--border-color,#282a36)] shadow-xs ring-1 ring-[var(--accent-color,#818cf8)]/20"
                     : "text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)]"
@@ -322,8 +322,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   {item.icon}
                 </div>
                 <div className="flex flex-col overflow-hidden">
-                  <span className="font-semibold text-xs text-[var(--text-primary,#e6e9f0)]">{item.label}</span>
-                  <span className="text-[10px] text-[var(--text-muted,#6b7280)] truncate">{item.description}</span>
+                  <span className="font-semibold text-sm sm:text-xs text-[var(--text-primary,#e6e9f0)]">{item.label}</span>
+                  <span className="text-[11px] sm:text-[10px] text-[var(--text-muted,#6b7280)] truncate">{item.description}</span>
                 </div>
               </button>
             );
@@ -359,7 +359,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
-                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
+                  <h3 className="text-sm sm:text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
                     {t("languageAndDirection")}
                   </h3>
 
@@ -373,7 +373,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           : "border-[var(--border-color,#282a36)] bg-[var(--bg-primary,#131418)]/70 hover:border-[var(--text-muted,#6b7280)]"
                       }`}
                     >
-                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("languageEnglish")}</span>
+                      <span className="font-medium text-sm sm:text-xs text-[var(--text-primary,#e6e9f0)]">{t("languageEnglish")}</span>
                       {formData.language === "en" && <Check className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />}
                     </button>
 
@@ -386,20 +386,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                           : "border-[var(--border-color,#282a36)] bg-[var(--bg-primary,#131418)]/70 hover:border-[var(--text-muted,#6b7280)]"
                       }`}
                     >
-                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)] font-vazir">{t("languagePersian")}</span>
+                      <span className="font-medium text-sm sm:text-xs text-[var(--text-primary,#e6e9f0)] font-vazir">{t("languagePersian")}</span>
                       {formData.language === "fa" && <Check className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />}
                     </button>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] space-y-3">
-                  <h3 className="text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
+                  <h3 className="text-sm sm:text-xs font-semibold text-[var(--accent-color,#818cf8)] uppercase tracking-wider">
                     {t("chatInputAndScrolling")}
                   </h3>
 
                   <div className="space-y-2">
                     <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)] cursor-pointer">
-                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("enterKeySends")}</span>
+                      <span className="font-medium text-sm sm:text-xs text-[var(--text-primary,#e6e9f0)]">{t("enterKeySends")}</span>
                       <input
                         type="checkbox"
                         checked={formData.enterToSend}
@@ -409,7 +409,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     </label>
 
                     <label className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--bg-primary,#131418)]/60 border border-[var(--border-subtle,#1e2029)] cursor-pointer">
-                      <span className="font-medium text-xs text-[var(--text-primary,#e6e9f0)]">{t("autoScrollTitle")}</span>
+                      <span className="font-medium text-sm sm:text-xs text-[var(--text-primary,#e6e9f0)]">{t("autoScrollTitle")}</span>
                       <input
                         type="checkbox"
                         checked={formData.autoScroll}

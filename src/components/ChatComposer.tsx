@@ -360,7 +360,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               setIsPlusMenuOpen(false);
               fileInputRef.current?.click();
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm sm:text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
             <Paperclip className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-slate-200 transition-colors" />
             <span className="truncate">{t("addFile")}</span>
@@ -384,7 +384,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 setTimeout(() => textareaRef.current?.focus(), 50);
               }
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm sm:text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
             <ImageIcon className="w-4 h-4 shrink-0 text-violet-400 group-hover:text-violet-300 transition-colors" />
             <span className="truncate">{t("generateImage")}</span>
@@ -397,7 +397,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               setIsPlusMenuOpen(false);
               onOpenContextTool?.("search_memories");
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm sm:text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
             <Brain className="w-4 h-4 shrink-0 text-amber-400/90 group-hover:text-amber-300 transition-colors" />
             <span className="truncate">{t("searchMemories")}</span>
@@ -410,7 +410,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               setIsPlusMenuOpen(false);
               onOpenContextTool?.("search_conversations");
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm sm:text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
             <MessageSquare className="w-4 h-4 shrink-0 text-emerald-400/90 group-hover:text-emerald-300 transition-colors" />
             <span className="truncate">{t("searchConversations")}</span>
@@ -423,7 +423,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               setIsPlusMenuOpen(false);
               onOpenContextTool?.("search_context");
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm sm:text-xs font-medium text-[var(--text-primary,#e4e6eb)] hover:bg-[var(--btn-hover,#242632)] transition-colors cursor-pointer text-left rtl:text-right group"
           >
             <BookOpen className="w-4 h-4 shrink-0 text-sky-400/90 group-hover:text-sky-300 transition-colors" />
             <span className="truncate">{t("searchContext")}</span>
@@ -466,6 +466,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         <button
           type="button"
           onClick={handleSend}
+          onMouseDown={(e) => e.preventDefault()}
           disabled={!canSend}
           className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-150 cursor-pointer shrink-0 ${
             canSend
@@ -482,7 +483,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   );
 
   return (
-    <div className={className || "w-full max-w-3xl xl:max-w-4xl mx-auto px-3 sm:px-6 pb-2"}>
+    <div
+      className={
+        className ||
+        "w-full max-w-3xl xl:max-w-4xl mx-auto px-3 sm:px-6 pb-2 shrink-0 transition-all"
+      }
+      style={{
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)",
+      }}
+    >
       {/* Hidden file input */}
       <input
         type="file"
@@ -635,7 +644,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               isMultiline
                 ? "w-full min-h-[44px] max-h-48 px-2 py-1"
                 : "flex-1 px-2 py-0.5"
-            } bg-transparent text-[var(--composer-text,var(--text-primary,#e6e9f0))] placeholder-[var(--composer-placeholder,var(--text-muted,#6b7280))]/70 text-[14.5px] sm:text-[15px] leading-[22px] focus:outline-none focus:ring-0 border-0 resize-none overflow-y-auto custom-scrollbar block transition-[height] duration-100 ease-out ${
+            } bg-transparent text-[var(--composer-text,var(--text-primary,#e6e9f0))] placeholder-[var(--composer-placeholder,var(--text-muted,#6b7280))]/70 text-[16px] sm:text-[15px] leading-[22px] focus:outline-none focus:ring-0 border-0 resize-none overflow-y-auto custom-scrollbar block transition-[height] duration-100 ease-out ${
               inputIsRtl ? "font-vazir text-right" : "font-latin text-left"
             }`}
           />

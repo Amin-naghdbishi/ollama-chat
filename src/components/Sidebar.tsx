@@ -58,6 +58,8 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   language?: Language;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -88,6 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   onToggleCollapse,
   language = "en",
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTab, setFilterTab] = useState<"all" | "favorites" | "folders" | "pinned" | "archived">("all");
@@ -193,44 +197,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return timeB - timeA;
   });
 
-  if (isCollapsed) {
-    return (
-      <aside className="relative h-screen bg-[var(--bg-sidebar,#16171d)] border-r rtl:border-l rtl:border-r-0 border-[var(--border-color,#282a36)] flex flex-col items-center justify-between py-4 w-14 shrink-0 select-none z-20 transition-all duration-300">
-        {/* Top: Expand Toggle + Essential New Chat Icon */}
-        <div className="flex flex-col items-center gap-3 w-full">
-          <button
-            onClick={onToggleCollapse}
-            className="p-2.5 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] active:scale-95 transition-all cursor-pointer"
-            title={t("expandSidebar")}
-          >
-            <PanelLeft className="w-5 h-5 text-[var(--accent-color,#818cf8)] rtl:rotate-180" />
-          </button>
-
-          <button
-            onClick={onNewConversation}
-            className="p-2.5 rounded-xl bg-[var(--accent-color,#818cf8)] hover:bg-[var(--accent-hover,#6366f1)] text-[var(--accent-text,#09090b)] active:scale-95 transition-all shadow-sm cursor-pointer"
-            title={t("newChat")}
-          >
-            <Plus className="w-5 h-5 stroke-[2.5]" />
-          </button>
-        </div>
-
-        {/* Bottom: Essential Settings Icon */}
-        <div className="flex flex-col items-center gap-3 w-full">
-          <button
-            onClick={onOpenSettings}
-            className="p-2.5 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] active:scale-95 transition-all cursor-pointer"
-            title={t("settings")}
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
   // Render conversation item component
-  const renderConversationItem = (c: Conversation) => {
+  const renderConversationItem = (c: Conversation, isMobile: boolean = false) => {
     const isActive = c.id === activeConversationId;
     const isEditingThis = editingId === c.id;
     const isMenuOpen = openMenuId === c.id;
@@ -244,7 +212,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ? "bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] text-[var(--text-primary,#e6e9f0)] font-medium shadow-xs"
             : "text-[var(--text-secondary,#9ba3b2)] hover:bg-[var(--btn-hover,#262834)]/70 hover:text-[var(--text-primary,#e6e9f0)]"
         }`}
-        onClick={() => onSelectConversation(c.id)}
+        onClick={() => {
+          onSelectConversation(c.id);
+          if (isMobile) onCloseMobile?.();
+        }}
       >
         <div className="flex items-center gap-2 overflow-hidden flex-1 mr-1 rtl:mr-0 rtl:ml-1">
           <MessageSquare
@@ -456,10 +427,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
-  return (
-    <aside className="relative h-screen bg-[var(--bg-sidebar,#16171d)] border-r rtl:border-l rtl:border-r-0 border-[var(--border-color,#282a36)] flex flex-col transition-all duration-300 ease-in-out shrink-0 select-none z-20 w-64 sm:w-72">
+  const renderSidebarBody = (isMobile: boolean = false) => (
+    <>
       {/* Top Header Row with Logo & Toggle Button */}
-      <div className="flex items-center justify-between p-3.5 border-b border-[var(--border-color,#282a36)]">
+      <div className="flex items-center justify-between p-3.5 border-b border-[var(--border-color,#282a36)] shrink-0">
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="w-7 h-7 rounded-lg bg-[var(--bg-surface,#1f212a)] border border-[var(--border-color,#282a36)] flex items-center justify-center shrink-0">
             <Cpu className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />
@@ -469,19 +440,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </div>
 
-        <button
-          onClick={onToggleCollapse}
-          className="p-1.5 rounded-lg text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] transition-colors cursor-pointer"
-          title={t("collapseSidebar")}
-        >
-          <PanelLeftClose className="w-5 h-5 rtl:rotate-180" />
-        </button>
+        {isMobile ? (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="p-1.5 rounded-lg text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] transition-colors cursor-pointer"
+            title="Close sidebar"
+            aria-label="Close sidebar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="p-1.5 rounded-lg text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] transition-colors cursor-pointer"
+            title={t("collapseSidebar")}
+          >
+            <PanelLeftClose className="w-5 h-5 rtl:rotate-180" />
+          </button>
+        )}
       </div>
 
       {/* Action Row: New Chat + New Folder */}
-      <div className="p-3 flex items-center gap-2">
+      <div className="p-3 flex items-center gap-2 shrink-0">
         <button
-          onClick={onNewConversation}
+          type="button"
+          onClick={() => {
+            onNewConversation();
+            if (isMobile) onCloseMobile?.();
+          }}
           className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[var(--accent-color,#818cf8)] hover:bg-[var(--accent-hover,#6366f1)] active:scale-[0.98] text-[var(--accent-text,#09090b)] font-bold px-3.5 py-2.5 text-xs shadow-xs transition-all cursor-pointer"
           title={t("newChat")}
         >
@@ -539,7 +527,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t("searchChats")}
-            className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-xs pl-8 rtl:pl-3 rtl:pr-8 pr-3 py-1.5 rounded-lg border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)]"
+            className="w-full bg-[var(--input-bg,#16171e)] text-[var(--text-primary,#e6e9f0)] placeholder-[var(--text-muted,#6b7280)] text-sm sm:text-xs pl-8 rtl:pl-3 rtl:pr-8 pr-3 py-1.5 rounded-lg border border-[var(--input-border,#2a2d3c)] focus:outline-none focus:border-[var(--accent-color,#818cf8)]"
           />
           {searchQuery && (
             <button
@@ -781,7 +769,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               {t("noChatsInFolder")}
                             </div>
                           ) : (
-                            folderChats.map((c) => renderConversationItem(c))
+                            folderChats.map((c) => renderConversationItem(c, isMobile))
                           )}
                         </div>
                       )}
@@ -812,7 +800,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {sortedUnfolderedConversations.map((c) => renderConversationItem(c))}
+                    {sortedUnfolderedConversations.map((c) => renderConversationItem(c, isMobile))}
                   </div>
                 )}
               </>
@@ -822,11 +810,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer Controls */}
-      <div className="p-3 border-t border-[var(--border-color,#282a36)] bg-[var(--bg-secondary,#191a21)]">
+      <div className="p-3 border-t border-[var(--border-color,#282a36)] bg-[var(--bg-secondary,#191a21)] shrink-0">
         <div className="flex items-center justify-between">
           <button
-            onClick={onOpenSettings}
-            className="flex items-center gap-2 p-2 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] transition-colors text-xs font-medium cursor-pointer"
+            type="button"
+            onClick={() => {
+              onOpenSettings();
+              if (isMobile) onCloseMobile?.();
+            }}
+            className="flex items-center gap-2 p-2 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] transition-colors text-sm sm:text-xs font-medium cursor-pointer"
             title={t("settings")}
           >
             <Settings className="w-4 h-4 text-[var(--accent-color,#818cf8)]" />
@@ -834,6 +826,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           <button
+            type="button"
             onClick={onOpenCommandPalette}
             className="p-2 rounded-xl text-[var(--text-muted,#6b7280)] hover:text-[var(--text-secondary,#9ba3b2)] hover:bg-[var(--btn-hover,#262834)] transition-colors text-xs flex items-center gap-1.5 font-mono cursor-pointer"
             title={t("commandPalette")}
@@ -843,6 +836,83 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  if (isCollapsed) {
+    return (
+      <>
+        {/* Desktop Collapsed Sidebar (Only on desktop, hidden on mobile) */}
+        <aside className="hidden md:flex relative h-full bg-[var(--bg-sidebar,#16171d)] border-r rtl:border-l rtl:border-r-0 border-[var(--border-color,#282a36)] flex-col items-center justify-between py-4 w-14 shrink-0 select-none z-20 transition-all duration-300">
+          <div className="flex flex-col items-center gap-3 w-full">
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="p-2.5 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] active:scale-95 transition-all cursor-pointer"
+              title={t("expandSidebar")}
+            >
+              <PanelLeft className="w-5 h-5 text-[var(--accent-color,#818cf8)] rtl:rotate-180" />
+            </button>
+
+            <button
+              type="button"
+              onClick={onNewConversation}
+              className="p-2.5 rounded-xl bg-[var(--accent-color,#818cf8)] hover:bg-[var(--accent-hover,#6366f1)] text-[var(--accent-text,#09090b)] active:scale-95 transition-all shadow-sm cursor-pointer"
+              title={t("newChat")}
+            >
+              <Plus className="w-5 h-5 stroke-[2.5]" />
+            </button>
+          </div>
+
+          <div className="flex flex-col items-center gap-3 w-full">
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="p-2.5 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)] active:scale-95 transition-all cursor-pointer"
+              title={t("settings")}
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        </aside>
+
+        {/* Mobile Sidebar Drawer Overlay (Phone-sized screens when opened) */}
+        {isMobileOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden animate-fadeIn"
+              onClick={onCloseMobile}
+              aria-hidden="true"
+            />
+            <aside className="fixed inset-y-0 left-0 rtl:left-auto rtl:right-0 z-50 h-full w-72 max-w-[85vw] bg-[var(--bg-sidebar,#16171d)] border-r rtl:border-l rtl:border-r-0 border-[var(--border-color,#282a36)] flex flex-col shadow-2xl md:hidden select-none">
+              {renderSidebarBody(true)}
+            </aside>
+          </>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {/* Desktop Expanded Sidebar (Only on desktop, hidden on mobile) */}
+      <aside className="hidden md:flex relative h-full bg-[var(--bg-sidebar,#16171d)] border-r rtl:border-l rtl:border-r-0 border-[var(--border-color,#282a36)] flex-col transition-all duration-300 ease-in-out shrink-0 select-none z-20 w-64 sm:w-72">
+        {renderSidebarBody(false)}
+      </aside>
+
+      {/* Mobile Sidebar Drawer Overlay (Phone-sized screens when opened) */}
+      {isMobileOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden animate-fadeIn"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+          <aside className="fixed inset-y-0 left-0 rtl:left-auto rtl:right-0 z-50 h-full w-72 max-w-[85vw] bg-[var(--bg-sidebar,#16171d)] border-r rtl:border-l rtl:border-r-0 border-[var(--border-color,#282a36)] flex flex-col shadow-2xl md:hidden select-none">
+            {renderSidebarBody(true)}
+          </aside>
+        </>
+      )}
+    </>
   );
 };

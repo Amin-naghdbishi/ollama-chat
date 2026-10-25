@@ -1,33 +1,25 @@
 import React from "react";
-import {
-  Cpu,
-  Info,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  Brain,
-  Bug,
-  Sparkles,
-} from "lucide-react";
+import { ChevronDown, Menu, Settings } from "lucide-react";
 import { OllamaModel, ConnectionStatus } from "../types";
 import { Language, getTranslation } from "../lib/i18n";
 
-interface HeaderProps {
+export interface HeaderProps {
   selectedModel: string | null;
   models?: OllamaModel[];
   onOpenModelPicker: () => void;
   isModelSpecsOpen?: boolean;
   onToggleModelSpecs?: () => void;
   onOpenModelSpecs?: () => void;
+  onOpenSettings?: () => void;
+  onOpenMobileSidebar?: () => void;
+  language?: Language;
+  // Optional props retained for backward compatibility
   connectionStatus?: ConnectionStatus;
   onRefreshConnection?: () => void;
-  onOpenSettings?: () => void;
   onOpenContextExplorer?: () => void;
   onOpenTroubleshooter?: () => void;
   onOpenDebugInspector?: () => void;
   onExportConversation?: (format: "json" | "md") => void;
-  language?: Language;
-  // Unused props kept optional for backwards compatibility
   selectedImageModel?: string | null;
   imageModels?: string[];
   isLoadingImageModels?: boolean;
@@ -52,108 +44,74 @@ export const Header: React.FC<HeaderProps> = ({
   isModelSpecsOpen = false,
   onToggleModelSpecs,
   onOpenModelSpecs,
-  onOpenContextExplorer,
-  onOpenDebugInspector,
-  onExportConversation,
+  onOpenSettings,
+  onOpenMobileSidebar,
   language = "en",
 }) => {
   const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(language, key);
   const handleSpecsClick = onToggleModelSpecs || onOpenModelSpecs;
 
   return (
-    <header className="h-13 bg-[var(--bg-header,#0d0d0d)]/90 backdrop-blur-md border-b border-[var(--border-color,#262626)] px-3 sm:px-4 flex items-center justify-between z-10 shrink-0 select-none transition-colors">
-      {/* Left: Minimal Selected Model Button */}
-      <div className="flex items-center gap-2 overflow-hidden min-w-0">
-        <button
-          onClick={onOpenModelPicker}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-secondary,#1a1a1a)] hover:bg-[var(--bg-surface,#262626)] border border-[var(--border-color,#262626)] hover:border-[var(--accent-color,#818cf8)] transition-all cursor-pointer shadow-xs group"
-          title={`${t("selectModel")}: ${selectedModel || t("selectModel")}`}
-        >
-          <Cpu className="w-3.5 h-3.5 text-[var(--accent-color,#818cf8)] shrink-0 transition-transform group-hover:scale-110" />
-          <span className="font-mono text-xs font-semibold text-[var(--text-primary,#eee)] max-w-[150px] sm:max-w-[240px] truncate">
-            {selectedModel || t("selectModel")}
-          </span>
-          <ChevronDown className="w-3 h-3 text-[var(--text-muted,#777)] group-hover:text-[var(--text-primary,#eee)] transition-colors shrink-0" />
-        </button>
-      </div>
+    <header className="w-full bg-transparent border-0 px-3 sm:px-6 pt-2.5 sm:pt-3 pb-1 flex items-center justify-between z-10 shrink-0 select-none transition-colors">
+      {/* Left / Center Group: Mobile Hamburger, Model Name Selector, Chevron-only Specs Toggle */}
+      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+        {/* Mobile Hamburger Menu Button (Phone-sized screens only) */}
+        {onOpenMobileSidebar && (
+          <button
+            type="button"
+            onClick={onOpenMobileSidebar}
+            className="md:hidden p-2 -ml-1 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)]/50 active:scale-95 transition-all cursor-pointer"
+            aria-label="Open sidebar menu"
+            title="Open sidebar menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
 
-      {/* Right: Model Specs & Secondary Actions */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Model Specs Toggle Button */}
+        {/* 1. Model Selector: Displays ONLY the currently selected model's name (no icons, no decorative boxes) */}
+        <button
+          type="button"
+          onClick={onOpenModelPicker}
+          className="px-2 py-1 rounded-lg hover:bg-[var(--btn-hover,#262834)]/50 transition-colors cursor-pointer text-sm sm:text-xs font-mono font-medium text-[var(--text-primary,#e6e9f0)] hover:text-[var(--accent-color,#818cf8)] truncate max-w-[150px] xs:max-w-[210px] sm:max-w-[320px]"
+          title={`${t("selectModel")}: ${selectedModel || t("selectModel")}`}
+          aria-label={`${t("selectModel")}: ${selectedModel || t("selectModel")}`}
+        >
+          {selectedModel || t("selectModel")}
+        </button>
+
+        {/* 2. Model Specs Toggle: Downward-pointing chevron ONLY (no text label, rotates upward when expanded) */}
         {handleSpecsClick && (
           <button
+            type="button"
             onClick={handleSpecsClick}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer shadow-xs shrink-0 ${
-              isModelSpecsOpen
-                ? "bg-[var(--accent-color,#818cf8)] text-white border-[var(--accent-color,#818cf8)]"
-                : "bg-[var(--bg-secondary,#1a1a1a)] hover:bg-[var(--btn-hover,#262626)] border-[var(--border-color,#262626)] hover:border-[var(--accent-color,#818cf8)] text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#eee)]"
-            }`}
+            aria-label={isModelSpecsOpen ? t("collapseSpecs") : t("expandSpecs")}
             title={isModelSpecsOpen ? t("collapseSpecs") : t("expandSpecs")}
             aria-expanded={isModelSpecsOpen}
+            className="p-1.5 rounded-lg text-[var(--text-muted,#777)] hover:text-[var(--text-primary,#eee)] hover:bg-[var(--btn-hover,#262834)]/50 active:scale-95 transition-all cursor-pointer"
           >
-            <Info
-              className={`w-3.5 h-3.5 shrink-0 ${
-                isModelSpecsOpen ? "text-white" : "text-[var(--accent-color,#818cf8)]"
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${
+                isModelSpecsOpen ? "rotate-180 text-[var(--accent-color,#818cf8)]" : ""
               }`}
             />
-            <span className="hidden sm:inline">{t("modelSpecs")}</span>
-            <span className="sm:hidden text-[11px]">{t("specs")}</span>
-            {isModelSpecsOpen ? (
-              <ChevronUp className="w-3 h-3 shrink-0 opacity-90" />
-            ) : (
-              <ChevronDown className="w-3 h-3 shrink-0 opacity-70" />
-            )}
-          </button>
-        )}
-
-        {/* Export Conversation Menu */}
-        {onExportConversation && (
-          <div className="relative group">
-            <button
-              className="p-1.5 sm:p-2 rounded-xl bg-[var(--bg-secondary,#1a1a1a)] border border-[var(--border-color,#262626)] hover:border-[var(--btn-hover,#444)] text-[var(--text-secondary,#888)] hover:text-[var(--text-primary,#eee)] transition-colors text-xs flex items-center gap-1 cursor-pointer"
-              title={t("exportConversation")}
-            >
-              <Download className="w-4 h-4" />
-            </button>
-            <div className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-1 hidden group-hover:flex flex-col bg-[var(--bg-surface,#1a1a1a)] border border-[var(--border-color,#262626)] rounded-xl p-1 shadow-xl z-30 min-w-[140px]">
-              <button
-                onClick={() => onExportConversation("md")}
-                className="px-3 py-1.5 text-left rtl:text-right text-xs text-[var(--text-primary,#ccc)] hover:bg-[var(--btn-hover,#262626)] rounded-lg transition-colors cursor-pointer"
-              >
-                {t("exportMarkdown")}
-              </button>
-              <button
-                onClick={() => onExportConversation("json")}
-                className="px-3 py-1.5 text-left rtl:text-right text-xs text-[var(--text-primary,#ccc)] hover:bg-[var(--btn-hover,#262626)] rounded-lg transition-colors cursor-pointer"
-              >
-                {t("exportJson")}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Context Explorer Button */}
-        {onOpenContextExplorer && (
-          <button
-            onClick={onOpenContextExplorer}
-            className="p-1.5 sm:p-2 rounded-xl bg-[var(--bg-secondary,#1a1a1a)] border border-[var(--border-color,#262626)] hover:border-[var(--accent-color,#818cf8)] text-[var(--text-secondary,#888)] hover:text-[var(--accent-color,#818cf8)] transition-colors cursor-pointer"
-            title={t("contextExplorer")}
-          >
-            <Brain className="w-4 h-4" />
-          </button>
-        )}
-
-        {/* Debug Inspector Button */}
-        {onOpenDebugInspector && (
-          <button
-            onClick={onOpenDebugInspector}
-            className="p-1.5 sm:p-2 rounded-xl bg-[var(--bg-secondary,#1a1a1a)] border border-[var(--border-color,#262626)] hover:border-[var(--accent-color,#818cf8)] text-[var(--text-secondary,#888)] hover:text-[var(--accent-color,#818cf8)] transition-colors cursor-pointer"
-            title={t("debugInspector")}
-          >
-            <Bug className="w-4 h-4" />
           </button>
         )}
       </div>
+
+      {/* Right Group: Settings Button directly in Mobile Header (hidden on Desktop) */}
+      {onOpenSettings && (
+        <div className="md:hidden flex items-center shrink-0">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="p-2 -mr-1 rounded-xl text-[var(--text-secondary,#9ba3b2)] hover:text-[var(--text-primary,#e6e9f0)] hover:bg-[var(--btn-hover,#262834)]/50 active:scale-95 transition-all cursor-pointer"
+            aria-label={t("settings")}
+            title={t("settings")}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
+      )}
     </header>
   );
 };

@@ -140,7 +140,46 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>({ type: "chat" });
   const [viewHistory, setViewHistory] = useState<ActiveView[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const previousSidebarStateBeforeSettings = useRef<boolean | null>(null);
+
+  // Dynamic mobile viewport height tracking (pins composer immediately above virtual keyboard)
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${vh}px`);
+    };
+
+    updateViewportHeight();
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateViewportHeight);
+      window.visualViewport.addEventListener("scroll", updateViewportHeight);
+    } else {
+      window.addEventListener("resize", updateViewportHeight);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", updateViewportHeight);
+        window.visualViewport.removeEventListener("scroll", updateViewportHeight);
+      } else {
+        window.removeEventListener("resize", updateViewportHeight);
+      }
+    };
+  }, []);
+
+  const handleOpenMobileSidebar = useCallback(() => {
+    // Opening sidebar dismisses mobile keyboard & blurs input
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setIsMobileSidebarOpen(true);
+  }, []);
+
+  const handleCloseMobileSidebar = useCallback(() => {
+    setIsMobileSidebarOpen(false);
+  }, []);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
   const [lastDebugInfo, setLastDebugInfo] = useState<DebugInfoState | null>(null);
@@ -199,6 +238,10 @@ export default function App() {
       previousSidebarStateBeforeSettings.current = null;
     }
     setActiveConversationId(id);
+    setIsMobileSidebarOpen(false);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setActiveView({ type: "chat" });
     setViewHistory([]);
   }, [activeView.type]);
@@ -510,6 +553,10 @@ export default function App() {
     if (activeView.type === "settings" && previousSidebarStateBeforeSettings.current === false) {
       setIsSidebarCollapsed(false);
       previousSidebarStateBeforeSettings.current = null;
+    }
+    setIsMobileSidebarOpen(false);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
     }
     const newConv: Conversation = {
       id: Math.random().toString(36).substring(2, 9),
@@ -2088,7 +2135,10 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-primary,#131418)] text-[var(--text-primary,#e6e9f0)] font-sans antialiased">
+    <div
+      className="flex w-full h-[100dvh] overflow-hidden bg-[var(--bg-primary,#131418)] text-[var(--text-primary,#e6e9f0)] font-sans antialiased"
+      style={{ height: "var(--app-height, 100dvh)", maxHeight: "var(--app-height, 100dvh)" }}
+    >
       {/* Sidebar */}
       <Sidebar
         conversations={conversations}
@@ -2119,11 +2169,13 @@ export default function App() {
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         language={settings.language}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={handleCloseMobileSidebar}
       />
 
       {/* Main Workspace Container */}
       <div
-        className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-primary,#131418)]"
+        className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-[var(--bg-primary,#131418)]"
         style={{ backgroundImage: "var(--chat-bg-image)", backgroundSize: "cover", backgroundPosition: "center" }}
       >
         {activeView.type === "chat" && (
@@ -2133,35 +2185,10 @@ export default function App() {
               selectedModel={selectedModel}
               models={models}
               onOpenModelPicker={() => navigateToView({ type: "model-selection" })}
-              selectedImageModel={selectedImageModel}
-              imageModels={imageModels}
-              isLoadingImageModels={isLoadingImageModels}
-              onSelectImageModel={handleSelectImageModel}
-              onRefreshImageModels={checkServicesAndImageModels}
-              ollamaServiceState={servicesStatus.ollama?.state || (connectionStatus.isConnected ? "Running" : "Stopped")}
-              ollamaServiceError={servicesStatus.ollama?.error}
-              onStartOllama={handleStartOllama}
-              onStopOllama={handleStopOllama}
-              isStartingOllama={isStartingOllama}
-              comfyServiceState={servicesStatus.comfyui?.state || "Stopped"}
-              comfyServiceError={servicesStatus.comfyui?.error}
-              onStartComfy={handleStartComfy}
-              onStopComfy={handleStopComfy}
-              isStartingComfy={isStartingComfy}
               isModelSpecsOpen={isModelSpecsOpen}
               onToggleModelSpecs={() => setIsModelSpecsOpen((prev) => !prev)}
-              liveMetrics={liveMetrics}
-              connectionStatus={connectionStatus}
-              onRefreshConnection={checkHealthAndModels}
               onOpenSettings={() => navigateToView({ type: "settings" })}
-              onOpenContextExplorer={() => navigateToView({ type: "context-explorer" })}
-              onOpenTroubleshooter={() => navigateToView({ type: "troubleshooter" })}
-              onOpenDebugInspector={() => setIsDebugOpen(true)}
-              onExportConversation={
-                activeConversation
-                  ? (format) => handleExportConversation(activeConversation.id, format)
-                  : undefined
-              }
+              onOpenMobileSidebar={handleOpenMobileSidebar}
               language={settings.language}
             />
 

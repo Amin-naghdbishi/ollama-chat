@@ -130,9 +130,25 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     updateActiveQuestion();
   }, [messages, isGenerating, updateActiveQuestion]);
 
+  // Adjust scroll when virtual keyboard opens or viewport resizes on mobile
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (isAutoScrollAllowed.current) {
+        scrollToBottom(false);
+      }
+    };
+
+    if (typeof window !== "undefined" && window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportResize);
+      return () => {
+        window.visualViewport?.removeEventListener("resize", handleViewportResize);
+      };
+    }
+  }, []);
+
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto custom-scrollbar">
+      <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto custom-scrollbar min-h-0">
         <EmptyState language={language} />
       </div>
     );
@@ -142,7 +158,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
 
   return (
-    <div className="relative flex-1 overflow-hidden flex flex-col">
+    <div className="relative flex-1 overflow-hidden flex flex-col min-h-0">
       {/* Question Navigator on the side */}
       <QuestionNavigator
         messages={messages}

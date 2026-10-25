@@ -269,11 +269,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         ) : isUser ? (
           /* User Message Bubble */
-          <div className="bg-[var(--bg-user-msg,#222530)] border border-[var(--border-color,#313547)] px-4.5 py-3 rounded-2xl rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm text-[var(--text-primary,#f3f4f6)] text-[14.5px] sm:text-[15px] leading-relaxed shadow-sm">
+          <div className="bg-[var(--bg-user-msg,#222530)] border border-[var(--border-color,#313547)] px-4.5 py-3 rounded-2xl rounded-tr-sm rtl:rounded-tr-2xl rtl:rounded-tl-sm text-[var(--text-primary,#f3f4f6)] text-[16px] sm:text-[15px] leading-relaxed shadow-sm">
             {/* Reply / Reference indicator above message if this is an image edit request */}
             {message.imageEditReference && (
               <div
-                className="flex items-center gap-2.5 mb-2.5 p-1.5 px-2.5 rounded-xl bg-black/30 border-l-2 rtl:border-l-0 rtl:border-r-2 border-[var(--accent-color,#818cf8)] border border-white/10 text-xs shadow-xs"
+                className="flex items-center gap-2.5 mb-2.5 p-1.5 px-2.5 rounded-xl bg-black/30 border-l-2 rtl:border-l-0 rtl:border-r-2 border-[var(--accent-color,#818cf8)] border border-white/10 text-sm sm:text-xs shadow-xs"
               >
                 <img
                   src={message.imageEditReference.sourceImageUrl}
@@ -470,7 +470,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           })()
         ) : (
           /* Regular Assistant Text Response */
-          <div className="w-full text-[var(--text-primary,#f3f4f6)] text-[14.5px] sm:text-[15px] leading-relaxed space-y-3">
+          <div className="w-full text-[var(--text-primary,#f3f4f6)] text-[16px] sm:text-[15px] leading-relaxed space-y-3">
             {message.isError ? (
               <div className="text-[var(--color-error,#f87171)] flex flex-col gap-1.5 p-3 rounded-xl bg-red-950/40 border border-red-800/60">
                 <span className="font-semibold text-xs uppercase tracking-wider">
